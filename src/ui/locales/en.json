@@ -1,0 +1,79 @@
+{
+  "app": {
+    "title": "Agent Cowork",
+    "no_messages": "No messages yet",
+    "start_conversation": "Start a conversation with Claude Code"
+  },
+  "sidebar": {
+    "new_task": "New Task",
+    "no_sessions": "No sessions yet. Start by sending a prompt.",
+    "working_dir_unavailable": "Working dir unavailable",
+    "open_menu": "Open session menu",
+    "delete_session": "Delete this session",
+    "resume_claude": "Resume in Claude Code",
+    "resume_title": "Resume",
+    "copy_command": "Copy resume command",
+    "close_dialog": "Close dialog"
+  },
+  "modal": {
+    "title": "Start Session",
+    "description": "Create a new session to start interacting with agent.",
+    "cwd_label": "Working Directory",
+    "cwd_placeholder": "/path/to/project",
+    "browse": "Browse...",
+    "recent": "Recent",
+    "prompt_label": "Prompt",
+    "prompt_placeholder": "Describe the task you want agent to handle...",
+    "start_button": "Start Session",
+    "close": "Close"
+  },
+  "input": {
+    "placeholder": "Describe what you want agent to handle...",
+    "stop": "Stop session",
+    "send": "Send prompt"
+  },
+  "common": {
+    "error": "Error",
+    "language": "Language",
+    "running_error": "Session is still running. Please wait for it to finish.",
+    "cwd_required": "Working Directory is required to start a session.",
+    "title_error": "Failed to get session title.",
+    "allow": "Allow",
+    "deny": "Deny",
+    "cancel": "Cancel"
+  },
+  "unit": {
+    "min": "min"
+  },
+  "event": {
+    "session_result": "Session Result",
+    "duration": "Duration",
+    "api_duration": "API",
+    "usage": "Usage",
+    "cost": "Cost",
+    "input": "Input",
+    "output": "Output",
+    "collapse": "Collapse",
+    "show_more": "Show {{count}} more lines",
+    "system_init": "System Init",
+    "session_id": "Session ID",
+    "model_name": "Model Name",
+    "permission_mode": "Permission Mode",
+    "working_dir": "Working Directory",
+    "user": "User",
+    "session_error": "Session Error",
+    "thinking": "Thinking",
+    "assistant": "Assistant"
+  },
+  "permission": {
+    "question_title": "Question from Claude",
+    "other_label": "Other",
+    "other_placeholder": "Type your answer...",
+    "multi_select_hint": "Multiple selections allowed.",
+    "submit_answers": "Submit answers",
+    "request_title": "Permission Request",
+    "claude_wants_to_use": "Claude wants to use:",
+    "deny_message": "User denied the request",
+    "cancel_message": "User canceled the question"
+  }
+}

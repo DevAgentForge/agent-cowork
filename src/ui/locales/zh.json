@@ -1,0 +1,79 @@
+{
+  "app": {
+    "title": "Agent Cowork",
+    "no_messages": "暂无消息",
+    "start_conversation": "开始与 Claude Code 对话吧"
+  },
+  "sidebar": {
+    "new_task": "新建任务",
+    "no_sessions": "暂无会话。发送提示词开始吧。",
+    "working_dir_unavailable": "工作目录不可用",
+    "open_menu": "打开会话菜单",
+    "delete_session": "删除此会话",
+    "resume_claude": "在终端中继续",
+    "resume_title": "继续会话",
+    "copy_command": "复制继续命令",
+    "close_dialog": "关闭对话框"
+  },
+  "modal": {
+    "title": "启动会话",
+    "description": "创建一个新会话以开始与助手交互。",
+    "cwd_label": "工作目录",
+    "cwd_placeholder": "/项目/路径",
+    "browse": "浏览...",
+    "recent": "最近使用",
+    "prompt_label": "提示词",
+    "prompt_placeholder": "描述您想让助手处理的任务...",
+    "start_button": "启动会话",
+    "close": "关闭"
+  },
+  "input": {
+    "placeholder": "描述您想让助手处理的任务...",
+    "stop": "停止会话",
+    "send": "发送提示词"
+  },
+  "common": {
+    "error": "错误",
+    "language": "语言",
+    "running_error": "会话仍在运行中。请等待完成后再发送。",
+    "cwd_required": "启动会话需要指定工作目录。",
+    "title_error": "生成会话标题失败。",
+    "allow": "允许",
+    "deny": "拒绝",
+    "cancel": "取消"
+  },
+  "unit": {
+    "min": "分钟"
+  },
+  "event": {
+    "session_result": "执行结果",
+    "duration": "执行总耗时",
+    "api_duration": "API 耗时",
+    "usage": "资源消耗",
+    "cost": "费用合计",
+    "input": "输入 Token",
+    "output": "输出 Token",
+    "collapse": "折叠",
+    "show_more": "展开剩余 {{count}} 行",
+    "system_init": "系统初始化",
+    "session_id": "会话 ID",
+    "model_name": "模型名称",
+    "permission_mode": "权限模式",
+    "working_dir": "工作目录",
+    "user": "用户",
+    "session_error": "会话错误",
+    "thinking": "正在思考",
+    "assistant": "智能助手"
+  },
+  "permission": {
+    "question_title": "来自助手的问题",
+    "other_label": "其他",
+    "other_placeholder": "输入您的回答...",
+    "multi_select_hint": "支持多选。",
+    "submit_answers": "提交回答",
+    "request_title": "权限请求",
+    "claude_wants_to_use": "助手请求使用:",
+    "deny_message": "用户拒绝了请求",
+    "cancel_message": "用户取消了提问"
+  }
+}

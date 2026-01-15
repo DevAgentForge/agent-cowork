@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import { useIPC } from "./hooks/useIPC";
 import { useAppStore } from "./store/useAppStore";
@@ -10,6 +11,7 @@ import { MessageCard } from "./components/EventCard";
 import MDContent from "./render/markdown";
 
 function App() {
+  const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const partialMessageRef = useRef("");
   const [partialMessage, setPartialMessage] = useState("");
@@ -123,19 +125,29 @@ function App() {
       />
 
       <main className="flex flex-1 flex-col ml-[280px] bg-surface-cream">
-        <div 
-          className="flex items-center justify-center h-12 border-b border-ink-900/10 bg-surface-cream select-none"
+        {/* Top row: App title (center) + Window controls (right) */}
+        <div
+          className="relative h-10 px-4 border-b border-ink-900/10 bg-surface-cream select-none"
           style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
-          <span className="text-sm font-medium text-ink-700">{activeSession?.title || "Agent Cowork"}</span>
+          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -ml-[140px] text-sm font-medium text-ink-700">
+            {t('app.title')}
+          </span>
+        </div>
+        {/* Second row: Session title */}
+        <div
+          className="flex items-center justify-center h-10 border-b border-ink-900/10 bg-surface-cream select-none"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          <span className="text-sm font-medium text-ink-700">{activeSession?.title}</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-8 pb-40 pt-6">
+        <div className="flex-1 overflow-y-auto px-8 pb-60 pt-6 scroll-smooth">
           <div className="mx-auto max-w-3xl">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="text-lg font-medium text-ink-700">No messages yet</div>
-                <p className="mt-2 text-sm text-muted">Start a conversation with Claude Code</p>
+                <div className="text-lg font-medium text-ink-700">{t('app.no_messages')}</div>
+                <p className="mt-2 text-sm text-muted">{t('app.start_conversation')}</p>
               </div>
             ) : (
               messages.map((msg, idx) => (

@@ -3,44 +3,44 @@
 
 @theme {
   /* Surface colors */
-  --color-surface: #FFFFFF;
-  --color-surface-secondary: #F5F4F1;
-  --color-surface-tertiary: #EFEEE9;
-  --color-surface-cream: #FAF9F6;
-  
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f5f4f1;
+  --color-surface-tertiary: #efeee9;
+  --color-surface-cream: #faf9f6;
+
   /* Ink colors */
-  --color-ink-900: #1A1915;
-  --color-ink-800: #2D2D2A;
-  --color-ink-700: #4A4A45;
+  --color-ink-900: #1a1915;
+  --color-ink-800: #2d2d2a;
+  --color-ink-700: #4a4a45;
   --color-ink-600: #666661;
-  --color-ink-500: #7A7A75;
-  --color-ink-400: #9B9B96;
-  
+  --color-ink-500: #7a7a75;
+  --color-ink-400: #9b9b96;
+
   /* Muted colors */
-  --color-muted: #6B6B66;
-  --color-muted-light: #9B9B96;
-  
+  --color-muted: #6b6b66;
+  --color-muted-light: #9b9b96;
+
   /* Accent colors (Claude orange) */
-  --color-accent: #D97757;
-  --color-accent-hover: #CC785C;
-  --color-accent-light: #F5D0C5;
-  --color-accent-subtle: #FDF4F1;
-  
+  --color-accent: #d97757;
+  --color-accent-hover: #cc785c;
+  --color-accent-light: #f5d0c5;
+  --color-accent-subtle: #fdf4f1;
+
   /* Status colors */
-  --color-error: #DC2626;
-  --color-error-light: #FEE2E2;
-  --color-success: #16A34A;
-  --color-success-light: #DCFCE7;
-  --color-info: #2563EB;
-  --color-info-light: #DBEAFE;
-  
+  --color-error: #dc2626;
+  --color-error-light: #fee2e2;
+  --color-success: #16a34a;
+  --color-success-light: #dcfce7;
+  --color-info: #2563eb;
+  --color-info-light: #dbeafe;
+
   /* Background colors */
-  --color-bg-000: #FFFFFF;
-  --color-bg-100: #FAF9F6;
-  --color-bg-200: #F5F4F1;
-  --color-bg-300: #EFEEE9;
-  --color-bg-400: #E5E4DF;
-  
+  --color-bg-000: #ffffff;
+  --color-bg-100: #faf9f6;
+  --color-bg-200: #f5f4f1;
+  --color-bg-300: #efeee9;
+  --color-bg-400: #e5e4df;
+
   /* Shadows */
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -75,18 +75,23 @@ hr {
 }
 
 @media (max-width: 768px) {
-  input, textarea, select {
+  input,
+  textarea,
+  select {
     font-size: 16px;
   }
 }
 
-code, pre, textarea.mono, input.mono {
+code,
+pre,
+textarea.mono,
+input.mono {
   font-family: "Söhne Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 14px;
+  height: 14px;
 }
 
 ::-webkit-scrollbar-track {
@@ -94,18 +99,27 @@ code, pre, textarea.mono, input.mono {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D1D1CC;
-  border-radius: 3px;
+  background-color: var(--color-accent);
+  border: 6px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9999px;
+  min-height: 30px;
+  transition: background-color 0.2s, border-width 0.2s ease-out;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9B9B96;
+  background-color: var(--color-accent-hover);
+  border-width: 4px;
 }
 
 /* Shimmer animation for partial message loading */
 @keyframes shimmer {
-  0% { transform: translateX(-120%); }
-  100% { transform: translateX(120%); }
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
 }
 
 .animate-shimmer {

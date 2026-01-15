@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { ClientEvent } from "../types";
 import { useAppStore } from "../store/useAppStore";
 
@@ -12,6 +13,7 @@ interface PromptInputProps {
 }
 
 export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
+  const { t } = useTranslation();
   const prompt = useAppStore((state) => state.prompt);
   const cwd = useAppStore((state) => state.cwd);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
@@ -34,7 +36,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
       } catch (error) {
         console.error(error);
         setPendingStart(false);
-        setGlobalError("Failed to get session title.");
+        setGlobalError(t('common.title_error'));
         return;
       }
       sendEvent({
@@ -43,7 +45,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
       });
     } else {
       if (activeSession?.status === "running") {
-        setGlobalError("Session is still running. Please wait for it to finish.");
+        setGlobalError(t('common.running_error'));
         return;
       }
       sendEvent({ type: "session.continue", payload: { sessionId: activeSessionId, prompt } });
@@ -58,7 +60,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
 
   const handleStartFromModal = useCallback(() => {
     if (!cwd.trim()) {
-      setGlobalError("Working Directory is required to start a session.");
+      setGlobalError(t('common.cwd_required'));
       return;
     }
     handleSend();
@@ -68,6 +70,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
 }
 
 export function PromptInput({ sendEvent }: PromptInputProps) {
+  const { t } = useTranslation();
   const { prompt, setPrompt, isRunning, handleSend, handleStop } = usePromptActions(sendEvent);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -105,12 +108,14 @@ export function PromptInput({ sendEvent }: PromptInputProps) {
   }, [prompt]);
 
   return (
-    <section className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-surface via-surface to-transparent pb-6 px-2 lg:pb-8 pt-8 lg:ml-[280px]">
+    <section
+      className="fixed bottom-0 left-0 right-5 bg-gradient-to-t from-surface via-surface to-transparent pb-6 px-4 lg:pb-8 pt-8 lg:ml-[280px] z-40"
+    >
       <div className="mx-auto flex w-full max-w-full items-end gap-3 rounded-2xl border border-ink-900/10 bg-surface px-4 py-3 shadow-card lg:max-w-3xl">
         <textarea
           rows={1}
           className="flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-800 placeholder:text-muted focus:outline-none"
-          placeholder="Describe what you want agent to handle..."
+          placeholder={t('input.placeholder')}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -120,7 +125,7 @@ export function PromptInput({ sendEvent }: PromptInputProps) {
         <button
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${isRunning ? "bg-error text-white hover:bg-error/90" : "bg-accent text-white hover:bg-accent-hover"}`}
           onClick={isRunning ? handleStop : handleSend}
-          aria-label={isRunning ? "Stop session" : "Send prompt"}
+          aria-label={isRunning ? t('input.stop') : t('input.send')}
         >
           {isRunning ? (
             <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>
