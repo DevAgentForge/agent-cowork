@@ -1,11 +1,31 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron"
 import { ipcMainHandle, isDev, DEV_PORT } from "./util.js";
 import { getPreloadPath, getUIPath, getIconPath } from "./pathResolver.js";
-import { getStaticData, pollResources } from "./test.js";
+import { getStaticData, pollResources, cleanupPolling } from "./test.js";
 import { handleClientEvent, sessions } from "./ipc-handlers.js";
 import { generateSessionTitle } from "./libs/util.js";
 import type { ClientEvent } from "./types.js";
 import "./libs/claude-settings.js";
+
+// Track polling interval for cleanup
+let pollingIntervalId: ReturnType<typeof setInterval> | null = null;
+
+// Single instance lock - previene múltiples ventanas
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    app.quit();
+} else {
+    // Manejar segunda instancia - enfocar ventana existente
+    app.on("second-instance", () => {
+        BrowserWindow.getAllWindows().forEach(win => {
+            if (!win.isDestroyed()) {
+                win.focus();
+                win.show();
+            }
+        });
+    });
+}
 
 app.on("ready", () => {
     const mainWindow = new BrowserWindow({
@@ -25,7 +45,7 @@ app.on("ready", () => {
     if (isDev()) mainWindow.loadURL(`http://localhost:${DEV_PORT}`)
     else mainWindow.loadFile(getUIPath());
 
-    pollResources(mainWindow);
+    pollingIntervalId = pollResources(mainWindow);
 
     ipcMainHandle("getStaticData", () => {
         return getStaticData();
@@ -52,11 +72,29 @@ app.on("ready", () => {
         const result = await dialog.showOpenDialog(mainWindow, {
             properties: ['openDirectory']
         });
-        
+
         if (result.canceled) {
             return null;
         }
-        
+
         return result.filePaths[0];
     });
+
+    // Window lifecycle handlers
+    mainWindow.on("closed", () => {
+        cleanupPolling(pollingIntervalId);
+        pollingIntervalId = null;
+    });
 })
+
+// Window lifecycle - Mac
+app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+        cleanupPolling(pollingIntervalId);
+        app.quit();
+    }
+});
+
+app.on("before-quit", () => {
+    cleanupPolling(pollingIntervalId);
+});
