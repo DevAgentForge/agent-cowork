@@ -4,7 +4,7 @@ import os from "os"
 import { BrowserWindow } from "electron";
 import { ipcWebContentsSend } from "./util.js";
 
-const POLLING_INTERVAL = 500;
+const POLLING_INTERVAL = 2000;
 
 export function pollResources(mainWindow: BrowserWindow): ReturnType<typeof setInterval> {
     const intervalId = setInterval(async () => {

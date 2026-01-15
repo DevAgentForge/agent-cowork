@@ -1,91 +1,94 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron"
-import { ipcMainHandle, isDev, DEV_PORT } from "./util.js";
-import { getPreloadPath, getUIPath, getIconPath } from "./pathResolver.js";
+import { app, ipcMain, dialog } from "electron"
+import { ipcMainHandle } from "./util.js";
+import { getPreloadPath } from "./pathResolver.js";
 import { getStaticData, pollResources, cleanupPolling } from "./test.js";
 import { handleClientEvent, sessions } from "./ipc-handlers.js";
 import { generateSessionTitle } from "./libs/util.js";
 import type { ClientEvent } from "./types.js";
+import { WindowManager } from "./window-manager.js";
 import "./libs/claude-settings.js";
+import { existsSync } from "fs";
 
 // Track polling interval for cleanup
 let pollingIntervalId: ReturnType<typeof setInterval> | null = null;
+
+const windowManager = WindowManager.getInstance();
 
 // Single instance lock - previene múltiples ventanas
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
     app.quit();
+    process.exit(0);
 } else {
     // Manejar segunda instancia - enfocar ventana existente
     app.on("second-instance", () => {
-        BrowserWindow.getAllWindows().forEach(win => {
-            if (!win.isDestroyed()) {
-                win.focus();
-                win.show();
-            }
-        });
+        windowManager.focus();
     });
 }
 
-app.on("ready", () => {
-    const mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        minWidth: 900,
-        minHeight: 600,
-        webPreferences: {
-            preload: getPreloadPath(),
-        },
-        icon: getIconPath(),
-        titleBarStyle: "hiddenInset",
-        backgroundColor: "#FAF9F6",
-        trafficLightPosition: { x: 15, y: 18 }
-    });
-
-    if (isDev()) mainWindow.loadURL(`http://localhost:${DEV_PORT}`)
-    else mainWindow.loadFile(getUIPath());
-
-    pollingIntervalId = pollResources(mainWindow);
-
-    ipcMainHandle("getStaticData", () => {
-        return getStaticData();
-    });
-
-    // Handle client events
-    ipcMain.on("client-event", (_, event: ClientEvent) => {
-        handleClientEvent(event);
-    });
-
-    // Handle session title generation
-    ipcMainHandle("generate-session-title", async (_: any, userInput: string | null) => {
-        return await generateSessionTitle(userInput);
-    });
-
-    // Handle recent cwds request
-    ipcMainHandle("get-recent-cwds", (_: any, limit?: number) => {
-        const boundedLimit = limit ? Math.min(Math.max(limit, 1), 20) : 8;
-        return sessions.listRecentCwds(boundedLimit);
-    });
-
-    // Handle directory selection
-    ipcMainHandle("select-directory", async () => {
-        const result = await dialog.showOpenDialog(mainWindow, {
-            properties: ['openDirectory']
-        });
-
-        if (result.canceled) {
-            return null;
+app.on("ready", async () => {
+    try {
+        // Validate resources exist
+        if (!existsSync(getPreloadPath())) {
+            throw new Error(`Preload script not found`);
         }
 
-        return result.filePaths[0];
-    });
+        await windowManager.initialize();
 
-    // Window lifecycle handlers
-    mainWindow.on("closed", () => {
-        cleanupPolling(pollingIntervalId);
-        pollingIntervalId = null;
-    });
-})
+        const win = windowManager.getMainWindow();
+        if (!win) {
+            throw new Error("Failed to create main window");
+        }
+
+        pollingIntervalId = pollResources(win);
+
+        // IPC handlers
+        ipcMainHandle("getStaticData", () => {
+            return getStaticData();
+        });
+
+        ipcMain.on("client-event", (_event: any, event: ClientEvent) => {
+            handleClientEvent(event);
+        });
+
+        ipcMainHandle("generate-session-title", async (_: any, userInput: string | null) => {
+            return await generateSessionTitle(userInput);
+        });
+
+        ipcMainHandle("get-recent-cwds", (_: any, limit?: number) => {
+            const boundedLimit = limit ? Math.min(Math.max(limit, 1), 20) : 8;
+            return sessions.listRecentCwds(boundedLimit);
+        });
+
+        ipcMainHandle("select-directory", async () => {
+            const result = await dialog.showOpenDialog(win, {
+                properties: ['openDirectory']
+            });
+
+            if (result.canceled) {
+                return null;
+            }
+
+            return result.filePaths[0];
+        });
+
+        // Window lifecycle handlers
+        win.on("closed", () => {
+            cleanupPolling(pollingIntervalId);
+            pollingIntervalId = null;
+        });
+
+        console.log('App ready');
+    } catch (error) {
+        console.error("Failed to initialize app:", error);
+        dialog.showErrorBox(
+            "Initialization Error",
+            `Failed to start the application:\n${error instanceof Error ? error.message : String(error)}`
+        );
+        app.quit();
+    }
+});
 
 // Window lifecycle - Mac
 app.on("window-all-closed", () => {
@@ -97,4 +100,12 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
     cleanupPolling(pollingIntervalId);
+});
+
+app.on("activate", () => {
+    if (windowManager.isDestroyed()) {
+        windowManager.initialize();
+    } else {
+        windowManager.focus();
+    }
 });
