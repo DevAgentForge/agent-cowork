@@ -4,6 +4,8 @@ import { getPreloadPath, getUIPath, getIconPath } from "./pathResolver.js";
 import { getStaticData, pollResources } from "./test.js";
 import { handleClientEvent, sessions } from "./ipc-handlers.js";
 import { generateSessionTitle } from "./libs/util.js";
+import { saveApiConfig } from "./libs/config-store.js";
+import { getCurrentApiConfig } from "./libs/claude-settings.js";
 import type { ClientEvent } from "./types.js";
 import "./libs/claude-settings.js";
 
@@ -58,5 +60,22 @@ app.on("ready", () => {
         }
         
         return result.filePaths[0];
+    });
+
+    // Handle API config
+    ipcMainHandle("get-api-config", () => {
+        return getCurrentApiConfig();
+    });
+
+    ipcMainHandle("save-api-config", (_: any, config: any) => {
+        try {
+            saveApiConfig(config);
+            return { success: true };
+        } catch (error) {
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error) 
+            };
+        }
     });
 })

@@ -2,6 +2,7 @@ import { query, type SDKMessage, type PermissionResult } from "@anthropic-ai/cla
 import type { ServerEvent } from "../types.js";
 import type { Session } from "./session-store.js";
 import { claudeCodePath, enhancedEnv} from "./util.js";
+import { getCurrentApiConfig, buildEnvForConfig } from "./claude-settings.js";
 
 
 export type RunnerOptions = {
@@ -40,13 +41,23 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
   // Start the query in the background
   (async () => {
     try {
+      // 获取当前配置
+      const config = getCurrentApiConfig();
+      
+      // 使用 Anthropic SDK
+      const env = buildEnvForConfig(config);
+      const mergedEnv = {
+        ...enhancedEnv,
+        ...env
+      };
+
       const q = query({
         prompt,
         options: {
           cwd: session.cwd ?? DEFAULT_CWD,
           resume: resumeSessionId,
           abortController,
-          env: enhancedEnv,
+          env: mergedEnv,
           pathToClaudeCodeExecutable: claudeCodePath,
           permissionMode: "bypassPermissions",
           includePartialMessages: true,
