@@ -7,6 +7,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StartSessionModal } from "./components/StartSessionModal";
 import { PromptInput, usePromptActions } from "./components/PromptInput";
 import { MessageCard } from "./components/EventCard";
+import { DecisionPanel } from "./components/DecisionPanel";
 import MDContent from "./render/markdown";
 
 function App() {
@@ -29,6 +30,8 @@ function App() {
   const setPrompt = useAppStore((s) => s.setPrompt);
   const cwd = useAppStore((s) => s.cwd);
   const setCwd = useAppStore((s) => s.setCwd);
+  const permissionMode = useAppStore((s) => s.permissionMode);
+  const setPermissionMode = useAppStore((s) => s.setPermissionMode);
   const pendingStart = useAppStore((s) => s.pendingStart);
 
   // Helper function to extract partial message content
@@ -80,6 +83,9 @@ function App() {
   const activeSession = activeSessionId ? sessions[activeSessionId] : undefined;
   const messages = activeSession?.messages ?? [];
   const permissionRequests = activeSession?.permissionRequests ?? [];
+  const activePermissionRequest = permissionRequests[0];
+  const showGenericPermissionRequest =
+    Boolean(activePermissionRequest) && activePermissionRequest?.toolName !== "AskUserQuestion";
   const isRunning = activeSession?.status === "running";
 
   useEffect(() => {
@@ -150,6 +156,15 @@ function App() {
               ))
             )}
 
+            {showGenericPermissionRequest && activePermissionRequest && (
+              <div className="mt-6">
+                <DecisionPanel
+                  request={activePermissionRequest}
+                  onSubmit={(result) => handlePermissionResult(activePermissionRequest.toolUseId, result)}
+                />
+              </div>
+            )}
+
             {/* Partial message display with skeleton loading */}
             <div className="partial-message">
               <MDContent text={partialMessage} />
@@ -185,9 +200,11 @@ function App() {
         <StartSessionModal
           cwd={cwd}
           prompt={prompt}
+          permissionMode={permissionMode}
           pendingStart={pendingStart}
           onCwdChange={setCwd}
           onPromptChange={setPrompt}
+          onPermissionModeChange={setPermissionMode}
           onStart={handleStartFromModal}
           onClose={() => setShowStartModal(false)}
         />

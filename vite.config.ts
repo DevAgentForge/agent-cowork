@@ -5,7 +5,8 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
-	const port = parseInt(env.PORT); // MUST BE LOWERCASE
+	const port = Number.parseInt(env.PORT, 10);
+	const serverPort = Number.isFinite(port) ? port : 10087;
 
 	return {
 		plugins: [react(), tailwindcss(), tsconfigPaths()],
@@ -14,7 +15,7 @@ export default defineConfig(({ mode }) => {
 			outDir: 'dist-react',
 		},
 		server: {
-			port, // MUST BE LOWERCASE
+			port: serverPort, // MUST BE LOWERCASE
 			strictPort: true,
 		},
 	};

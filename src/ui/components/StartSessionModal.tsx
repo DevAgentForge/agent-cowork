@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 interface StartSessionModalProps {
   cwd: string;
   prompt: string;
+  permissionMode: "secure" | "free";
   pendingStart: boolean;
   onCwdChange: (value: string) => void;
   onPromptChange: (value: string) => void;
+  onPermissionModeChange: (value: "secure" | "free") => void;
   onStart: () => void;
   onClose: () => void;
 }
@@ -13,9 +15,11 @@ interface StartSessionModalProps {
 export function StartSessionModal({
   cwd,
   prompt,
+  permissionMode,
   pendingStart,
   onCwdChange,
   onPromptChange,
+  onPermissionModeChange,
   onStart,
   onClose
 }: StartSessionModalProps) {
@@ -90,6 +94,44 @@ export function StartSessionModal({
               onChange={(e) => onPromptChange(e.target.value)}
             />
           </label>
+          <div className="grid gap-2">
+            <span className="text-xs font-medium text-muted">Permission Mode</span>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                className={`rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+                  permissionMode === "secure"
+                    ? "border-accent/60 bg-accent/10 text-ink-800"
+                    : "border-ink-900/10 bg-surface text-muted hover:border-ink-900/20 hover:text-ink-700"
+                }`}
+                onClick={() => onPermissionModeChange("secure")}
+              >
+                <div className="font-medium">Secure (recommended)</div>
+                <div className="mt-1 text-xs text-muted">
+                  Ask for approval before each tool and honor allowed tools.
+                </div>
+              </button>
+              <button
+                type="button"
+                className={`rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+                  permissionMode === "free"
+                    ? "border-warning/50 bg-warning/10 text-ink-800"
+                    : "border-ink-900/10 bg-surface text-muted hover:border-ink-900/20 hover:text-ink-700"
+                }`}
+                onClick={() => onPermissionModeChange("free")}
+              >
+                <div className="font-medium">Free mode (no approvals)</div>
+                <div className="mt-1 text-xs text-muted">
+                  Claude can run tools without asking. Allowed tools are ignored.
+                </div>
+              </button>
+            </div>
+            {permissionMode === "free" && (
+              <div className="rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-ink-700">
+                In free mode, Claude will execute tools immediately without approval. Use with care.
+              </div>
+            )}
+          </div>
           <button
             className="flex flex-col items-center rounded-full bg-accent px-5 py-3 text-sm font-medium text-white shadow-soft hover:bg-accent-hover transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onStart}

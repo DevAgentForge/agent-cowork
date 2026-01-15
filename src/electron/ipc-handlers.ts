@@ -4,12 +4,17 @@ import { runClaude, type RunnerHandle } from "./libs/runner.js";
 import { SessionStore } from "./libs/session-store.js";
 import { app } from "electron";
 import { join } from "path";
+import { existsSync, readFileSync } from "fs";
+// Enhanced Orchestrator imports
+import { settingsManager } from "./libs/settings-manager.js";
+import { unifiedCommandParser } from "./libs/unified-commands.js";
+import { unifiedTaskRunner } from "./libs/unified-task-runner.js";
 
 const DB_PATH = join(app.getPath("userData"), "sessions.db");
 const sessions = new SessionStore(DB_PATH);
 const runnerHandles = new Map<string, RunnerHandle>();
 
-function broadcast(event: ServerEvent) {
+function broadcast<T>(event: T) {
   const payload = JSON.stringify(event);
   const windows = BrowserWindow.getAllWindows();
   for (const win of windows) {
@@ -67,6 +72,7 @@ export function handleClientEvent(event: ClientEvent) {
       cwd: event.payload.cwd,
       title: event.payload.title,
       allowedTools: event.payload.allowedTools,
+      permissionMode: event.payload.permissionMode,
       prompt: event.payload.prompt
     });
 
@@ -216,6 +222,134 @@ export function handleClientEvent(event: ClientEvent) {
     if (pending) {
       pending.resolve(event.payload.result);
     }
+    return;
+  }
+
+  // ============================================================
+  // Enhanced Orchestrator Event Handlers
+  // ============================================================
+
+  if (event.type === "settings.update") {
+    // Update language setting
+    if (event.payload.language) {
+      settingsManager.setLanguage(event.payload.language);
+    }
+    // Update alwaysThinking setting
+    if (event.payload.alwaysThinking !== undefined) {
+      settingsManager.setAlwaysThinkingEnabled(event.payload.alwaysThinking);
+    }
+    // Update system prompt
+    if (event.payload.systemPrompt !== undefined) {
+      settingsManager.setSystemPrompt(event.payload.systemPrompt);
+    }
+
+    // Broadcast settings.loaded event (don't record in session history)
+    broadcast({
+      type: "settings.loaded",
+      payload: {
+        language: settingsManager.getLanguage(),
+        alwaysThinking: settingsManager.isAlwaysThinkingEnabled(),
+        activeSkills: settingsManager.getActiveSkills().map(s => s.name)
+      }
+    });
+    return;
+  }
+
+  if (event.type === "command.parse") {
+    const parsed = unifiedCommandParser.parse(event.payload.input);
+    const command = unifiedCommandParser.getCommand(parsed.command);
+
+    // Broadcast command.parsed event
+    broadcast({
+      type: "command.parsed",
+      payload: {
+        input: parsed.raw,
+        command: parsed.command,
+        args: parsed.args,
+        isUnified: parsed.isUnified,
+        exists: !!command
+      }
+    });
+    return;
+  }
+
+  if (event.type === "skill.add") {
+    const { skillName, type } = event.payload;
+    settingsManager.addActiveSkill({ name: skillName, type });
+    unifiedCommandParser.registerSkill({ name: skillName, type });
+
+    // Broadcast updated skill list
+    broadcast({
+      type: "skill.list",
+      payload: {
+        skills: settingsManager.getActiveSkills().map(s => ({
+          name: s.name,
+          type: s.type,
+          description: `Skill: ${s.name}`
+        }))
+      }
+    });
+    return;
+  }
+
+  if (event.type === "skill.remove") {
+    const { skillName } = event.payload;
+    settingsManager.removeActiveSkill(skillName);
+    unifiedCommandParser.unregisterSkill(skillName);
+    return;
+  }
+
+  if (event.type === "task.apply") {
+    const { taskId } = event.payload;
+
+    // Load task collection from user data
+    const taskCollectionPath = join(app.getPath("userData"), "task-collection.json");
+
+    try {
+      if (existsSync(taskCollectionPath)) {
+        const content = readFileSync(taskCollectionPath, "utf-8");
+        const taskCollection = JSON.parse(content);
+
+        const task = taskCollection.tasks?.find((t: { id: string }) => t.id === taskId);
+        if (task) {
+          unifiedTaskRunner.configureTask(task.config);
+          broadcast({
+            type: "task.applied",
+            payload: { taskId, config: task.config }
+          });
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to load task collection:", error);
+    }
+
+    // Fallback: emit error if task not found
+    emit({
+      type: "runner.error",
+      payload: { message: `Task not found: ${taskId}` }
+    });
+    return;
+  }
+
+  if (event.type === "orchestrator.configure") {
+    const { language, injectSkills, systemPromptAddition } = event.payload;
+
+    // Configure orchestrator options
+    const options: Record<string, unknown> = {};
+    if (language) options.language = language;
+    if (injectSkills !== undefined) options.injectSkills = injectSkills;
+    if (systemPromptAddition) options.systemPromptAddition = systemPromptAddition;
+
+    // Broadcast configuration confirmation
+    broadcast({
+      type: "settings.loaded",
+      payload: {
+        language: settingsManager.getLanguage(),
+        alwaysThinking: settingsManager.isAlwaysThinkingEnabled(),
+        activeSkills: settingsManager.getActiveSkills().map(s => s.name)
+      }
+    });
     return;
   }
 }

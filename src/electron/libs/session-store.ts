@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import type { SessionStatus, StreamMessage } from "../types.js";
+import type { PermissionMode, SessionStatus, StreamMessage } from "../types.js";
 
 export type PendingPermission = {
   toolUseId: string;
@@ -15,6 +15,7 @@ export type Session = {
   status: SessionStatus;
   cwd?: string;
   allowedTools?: string;
+  permissionMode?: PermissionMode;
   lastPrompt?: string;
   pendingPermissions: Map<string, PendingPermission>;
   abortController?: AbortController;
@@ -26,6 +27,7 @@ export type StoredSession = {
   status: SessionStatus;
   cwd?: string;
   allowedTools?: string;
+  permissionMode?: PermissionMode;
   lastPrompt?: string;
   claudeSessionId?: string;
   createdAt: number;
@@ -47,7 +49,13 @@ export class SessionStore {
     this.loadSessions();
   }
 
-  createSession(options: { cwd?: string; allowedTools?: string; prompt?: string; title: string }): Session {
+  createSession(options: {
+    cwd?: string;
+    allowedTools?: string;
+    permissionMode?: PermissionMode;
+    prompt?: string;
+    title: string;
+  }): Session {
     const id = crypto.randomUUID();
     const now = Date.now();
     const session: Session = {
@@ -56,6 +64,7 @@ export class SessionStore {
       status: "idle",
       cwd: options.cwd,
       allowedTools: options.allowedTools,
+      permissionMode: options.permissionMode,
       lastPrompt: options.prompt,
       pendingPermissions: new Map()
     };
@@ -63,8 +72,8 @@ export class SessionStore {
     this.db
       .prepare(
         `insert into sessions
-          (id, title, claude_session_id, status, cwd, allowed_tools, last_prompt, created_at, updated_at)
-         values (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, title, claude_session_id, status, cwd, allowed_tools, permission_mode, last_prompt, created_at, updated_at)
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -73,6 +82,7 @@ export class SessionStore {
         session.status,
         session.cwd ?? null,
         session.allowedTools ?? null,
+        session.permissionMode ?? null,
         session.lastPrompt ?? null,
         now,
         now
@@ -87,7 +97,7 @@ export class SessionStore {
   listSessions(): StoredSession[] {
     const rows = this.db
       .prepare(
-        `select id, title, claude_session_id, status, cwd, allowed_tools, last_prompt, created_at, updated_at
+        `select id, title, claude_session_id, status, cwd, allowed_tools, permission_mode, last_prompt, created_at, updated_at
          from sessions
          order by updated_at desc`
       )
@@ -98,6 +108,7 @@ export class SessionStore {
       status: row.status as SessionStatus,
       cwd: row.cwd ? String(row.cwd) : undefined,
       allowedTools: row.allowed_tools ? String(row.allowed_tools) : undefined,
+      permissionMode: row.permission_mode ? (String(row.permission_mode) as PermissionMode) : undefined,
       lastPrompt: row.last_prompt ? String(row.last_prompt) : undefined,
       claudeSessionId: row.claude_session_id ? String(row.claude_session_id) : undefined,
       createdAt: Number(row.created_at),
@@ -122,7 +133,7 @@ export class SessionStore {
   getSessionHistory(id: string): SessionHistory | null {
     const sessionRow = this.db
       .prepare(
-        `select id, title, claude_session_id, status, cwd, allowed_tools, last_prompt, created_at, updated_at
+        `select id, title, claude_session_id, status, cwd, allowed_tools, permission_mode, last_prompt, created_at, updated_at
          from sessions
          where id = ?`
       )
@@ -143,6 +154,7 @@ export class SessionStore {
         status: sessionRow.status as SessionStatus,
         cwd: sessionRow.cwd ? String(sessionRow.cwd) : undefined,
         allowedTools: sessionRow.allowed_tools ? String(sessionRow.allowed_tools) : undefined,
+        permissionMode: sessionRow.permission_mode ? (String(sessionRow.permission_mode) as PermissionMode) : undefined,
         lastPrompt: sessionRow.last_prompt ? String(sessionRow.last_prompt) : undefined,
         claudeSessionId: sessionRow.claude_session_id ? String(sessionRow.claude_session_id) : undefined,
         createdAt: Number(sessionRow.created_at),
@@ -194,6 +206,7 @@ export class SessionStore {
       status: "status",
       cwd: "cwd",
       allowedTools: "allowed_tools",
+      permissionMode: "permission_mode",
       lastPrompt: "last_prompt"
     } as const;
 
@@ -224,11 +237,16 @@ export class SessionStore {
         status text not null,
         cwd text,
         allowed_tools text,
+        permission_mode text,
         last_prompt text,
         created_at integer not null,
         updated_at integer not null
       )`
     );
+    const columns = this.db.prepare(`pragma table_info(sessions)`).all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "permission_mode")) {
+      this.db.exec(`alter table sessions add column permission_mode text`);
+    }
     this.db.exec(
       `create table if not exists messages (
         id text primary key,
@@ -244,7 +262,7 @@ export class SessionStore {
   private loadSessions(): void {
     const rows = this.db
       .prepare(
-        `select id, title, claude_session_id, status, cwd, allowed_tools, last_prompt
+        `select id, title, claude_session_id, status, cwd, allowed_tools, permission_mode, last_prompt
          from sessions`
       )
       .all();
@@ -256,6 +274,7 @@ export class SessionStore {
         status: row.status as SessionStatus,
         cwd: row.cwd ? String(row.cwd) : undefined,
         allowedTools: row.allowed_tools ? String(row.allowed_tools) : undefined,
+        permissionMode: row.permission_mode ? (String(row.permission_mode) as PermissionMode) : undefined,
         lastPrompt: row.last_prompt ? String(row.last_prompt) : undefined,
         pendingPermissions: new Map()
       };

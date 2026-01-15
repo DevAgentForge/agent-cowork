@@ -9,12 +9,15 @@ export type StreamMessage = SDKMessage | UserPromptMessage;
 
 export type SessionStatus = "idle" | "running" | "completed" | "error";
 
+export type PermissionMode = "secure" | "free";
+
 export type SessionInfo = {
   id: string;
   title: string;
   status: SessionStatus;
   claudeSessionId?: string;
   cwd?: string;
+  permissionMode?: PermissionMode;
   createdAt: number;
   updatedAt: number;
 };
@@ -28,11 +31,19 @@ export type ServerEvent =
   | { type: "session.history"; payload: { sessionId: string; status: SessionStatus; messages: StreamMessage[] } }
   | { type: "session.deleted"; payload: { sessionId: string } }
   | { type: "permission.request"; payload: { sessionId: string; toolUseId: string; toolName: string; input: unknown } }
-  | { type: "runner.error"; payload: { sessionId?: string; message: string } };
+  | { type: "runner.error"; payload: { sessionId?: string; message: string } }
+  // Enhanced Orchestrator events
+  | { type: "settings.loaded"; payload: { language: string; alwaysThinking: boolean; activeSkills: string[] } }
+  | { type: "command.parsed"; payload: { input: string; command: string; args: string[]; isUnified: boolean; exists: boolean } }
+  | { type: "skill.list"; payload: { skills: Array<{ name: string; type: string; description: string }> } }
+  | { type: "task.applied"; payload: { taskId: string; config: unknown } };
 
 // Client -> Server events
 export type ClientEvent =
-  | { type: "session.start"; payload: { title: string; prompt: string; cwd?: string; allowedTools?: string } }
+  | {
+      type: "session.start";
+      payload: { title: string; prompt: string; cwd?: string; allowedTools?: string; permissionMode?: PermissionMode };
+    }
   | { type: "session.continue"; payload: { sessionId: string; prompt: string } }
   | { type: "session.stop"; payload: { sessionId: string } }
   | { type: "session.delete"; payload: { sessionId: string } }

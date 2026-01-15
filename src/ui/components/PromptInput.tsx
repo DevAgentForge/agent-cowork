@@ -16,6 +16,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
   const cwd = useAppStore((state) => state.cwd);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const sessions = useAppStore((state) => state.sessions);
+  const permissionMode = useAppStore((state) => state.permissionMode);
   const setPrompt = useAppStore((state) => state.setPrompt);
   const setPendingStart = useAppStore((state) => state.setPendingStart);
   const setGlobalError = useAppStore((state) => state.setGlobalError);
@@ -39,7 +40,13 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
       }
       sendEvent({
         type: "session.start",
-        payload: { title, prompt, cwd: cwd.trim() || undefined, allowedTools: DEFAULT_ALLOWED_TOOLS }
+        payload: {
+          title,
+          prompt,
+          cwd: cwd.trim() || undefined,
+          allowedTools: DEFAULT_ALLOWED_TOOLS,
+          permissionMode
+        }
       });
     } else {
       if (activeSession?.status === "running") {
@@ -49,7 +56,17 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
       sendEvent({ type: "session.continue", payload: { sessionId: activeSessionId, prompt } });
     }
     setPrompt("");
-  }, [activeSession, activeSessionId, cwd, prompt, sendEvent, setGlobalError, setPendingStart, setPrompt]);
+  }, [
+    activeSession,
+    activeSessionId,
+    cwd,
+    prompt,
+    permissionMode,
+    sendEvent,
+    setGlobalError,
+    setPendingStart,
+    setPrompt
+  ]);
 
   const handleStop = useCallback(() => {
     if (!activeSessionId) return;

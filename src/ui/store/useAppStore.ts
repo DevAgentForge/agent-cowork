@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import type { ServerEvent, SessionStatus, StreamMessage } from "../types";
+import type { PermissionMode, ServerEvent, SessionStatus, StreamMessage } from "../types";
+
+// Extended types for Orchestrator
+export type Language = "English" | "Español" | "Français" | "Deutsch" | "中文" | "日本語" | "Português";
+
+export type ThinkModeConfig =
+  | { enabled: false }
+  | { enabled: true; mode: "continuous" | "on-demand"; maxReasoningTokens?: number };
 
 export type PermissionRequest = {
   toolUseId: string;
@@ -20,11 +27,40 @@ export type SessionView = {
   hydrated: boolean;
 };
 
-interface AppState {
+export type ActiveSkill = {
+  name: string;
+  type: "slash" | "skill";
+  description?: string;
+};
+
+export type TaskConfig = {
+  folder: string;
+  description: string;
+  mode: "secure" | "free" | "auto";
+  thinkMode: ThinkModeConfig;
+  systemPrompt?: string;
+  appendSystemPrompt?: boolean;
+  preloadedSkills: string[];
+};
+
+// Extended Orchestrator State
+interface OrchestratorState {
+  language: Language;
+  alwaysThinking: boolean;
+  systemPrompt: string;
+  activeSkills: ActiveSkill[];
+  taskConfigs: TaskConfig[];
+  activeTaskId: string | null;
+  availableCommands: Array<{ name: string; type: string; description: string }>;
+}
+
+// Combined App State
+interface AppState extends OrchestratorState {
   sessions: Record<string, SessionView>;
   activeSessionId: string | null;
   prompt: string;
   cwd: string;
+  permissionMode: PermissionMode;
   pendingStart: boolean;
   globalError: string | null;
   sessionsLoaded: boolean;
@@ -33,6 +69,7 @@ interface AppState {
 
   setPrompt: (prompt: string) => void;
   setCwd: (cwd: string) => void;
+  setPermissionMode: (mode: PermissionMode) => void;
   setPendingStart: (pending: boolean) => void;
   setGlobalError: (error: string | null) => void;
   setShowStartModal: (show: boolean) => void;
@@ -40,6 +77,16 @@ interface AppState {
   markHistoryRequested: (sessionId: string) => void;
   resolvePermissionRequest: (sessionId: string, toolUseId: string) => void;
   handleServerEvent: (event: ServerEvent) => void;
+
+  // Orchestrator actions
+  setLanguage: (language: Language) => void;
+  setAlwaysThinking: (enabled: boolean) => void;
+  setSystemPrompt: (prompt: string) => void;
+  addActiveSkill: (skill: ActiveSkill) => void;
+  removeActiveSkill: (skillName: string) => void;
+  addTaskConfig: (config: TaskConfig) => void;
+  applyTaskConfig: (taskId: string) => void;
+  setAvailableCommands: (commands: Array<{ name: string; type: string; description: string }>) => void;
 }
 
 function createSession(id: string): SessionView {
@@ -47,10 +94,21 @@ function createSession(id: string): SessionView {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
+  // Orchestrator state
+  language: "English",
+  alwaysThinking: false,
+  systemPrompt: "",
+  activeSkills: [],
+  taskConfigs: [],
+  activeTaskId: null,
+  availableCommands: [],
+
+  // Session state
   sessions: {},
   activeSessionId: null,
   prompt: "",
   cwd: "",
+  permissionMode: "secure",
   pendingStart: false,
   globalError: null,
   sessionsLoaded: false,
@@ -59,10 +117,32 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrompt: (prompt) => set({ prompt }),
   setCwd: (cwd) => set({ cwd }),
+  setPermissionMode: (permissionMode) => set({ permissionMode }),
   setPendingStart: (pendingStart) => set({ pendingStart }),
   setGlobalError: (globalError) => set({ globalError }),
   setShowStartModal: (showStartModal) => set({ showStartModal }),
   setActiveSessionId: (id) => set({ activeSessionId: id }),
+
+  // Orchestrator actions
+  setLanguage: (language) => set({ language }),
+  setAlwaysThinking: (alwaysThinking) => set({ alwaysThinking }),
+  setSystemPrompt: (systemPrompt) => set({ systemPrompt }),
+
+  addActiveSkill: (skill) => set((state) => ({
+    activeSkills: [...state.activeSkills, skill]
+  })),
+
+  removeActiveSkill: (skillName) => set((state) => ({
+    activeSkills: state.activeSkills.filter(s => s.name !== skillName)
+  })),
+
+  addTaskConfig: (config) => set((state) => ({
+    taskConfigs: [...state.taskConfigs, config]
+  })),
+
+  applyTaskConfig: (taskId) => set({ activeTaskId: taskId }),
+
+  setAvailableCommands: (availableCommands) => set({ availableCommands }),
 
   markHistoryRequested: (sessionId) => {
     set((state) => {
@@ -244,6 +324,55 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case "runner.error": {
         set({ globalError: event.payload.message });
+        break;
+      }
+
+      // ============================================================
+      // Enhanced Orchestrator Event Handlers
+      // ============================================================
+
+      case "settings.loaded": {
+        const { language, alwaysThinking, activeSkills } = event.payload;
+        set({
+          language: language as Language,
+          alwaysThinking,
+          activeSkills: activeSkills.map((name: string) => ({
+            name,
+            type: "skill" as const,
+            description: `Skill: ${name}`
+          }))
+        });
+        break;
+      }
+
+      case "command.parsed": {
+        const { command, isUnified, exists } = event.payload;
+        // Update available commands list based on parsed input
+        if (isUnified && exists) {
+          set((state) => {
+            const existing = state.availableCommands.find(c => c.name === command);
+            if (existing) return state;
+            return {
+              availableCommands: [...state.availableCommands, {
+                name: command,
+                type: "command",
+                description: `Command: /${command}`
+              }]
+            };
+          });
+        }
+        break;
+      }
+
+      case "skill.list": {
+        const { skills } = event.payload;
+        set({ activeSkills: skills as ActiveSkill[] });
+        break;
+      }
+
+      case "task.applied": {
+        const { taskId } = event.payload;
+        set({ activeTaskId: taskId });
         break;
       }
     }
