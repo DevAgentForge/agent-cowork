@@ -40,7 +40,8 @@ MiniMax-M2.1 是一款开源的 SOTA（当前最先进）模型，在编程能�
 
 ## 微信交流群
 
-![wechat](https://github.com/user-attachments/assets/a5c68719-19d0-47a0-b802-03f989066dd6)
+![24](https://github.com/user-attachments/assets/dcb339ef-6958-46e4-ab35-e5ae4a0917bd)
+
 
 
 ## ✨ 为什么选择 Claude Cowork？
