@@ -6,24 +6,52 @@ import { ipcWebContentsSend } from "./util.js";
 
 const POLLING_INTERVAL = 2000;
 
+// Store interval reference for cleanup
+let activePollingInterval: ReturnType<typeof setInterval> | null = null;
+
 export function pollResources(mainWindow: BrowserWindow): ReturnType<typeof setInterval> {
+    // Clear any existing interval before starting a new one
+    if (activePollingInterval) {
+        clearInterval(activePollingInterval);
+        activePollingInterval = null;
+    }
+
     const intervalId = setInterval(async () => {
+        // Check if window is destroyed BEFORE processing
         if (!mainWindow || mainWindow.isDestroyed()) {
             clearInterval(intervalId);
+            activePollingInterval = null;
             return;
         }
-        const cpuUsage = await getCPUUsage();
-        const storageData = getStorageData();
-        const ramUsage = getRamUsage();
 
-        ipcWebContentsSend("statistics", mainWindow.webContents, { cpuUsage, ramUsage, storageData: storageData.usage });
+        try {
+            const cpuUsage = await getCPUUsage();
+            const storageData = getStorageData();
+            const ramUsage = getRamUsage();
+
+            // Double-check window is still valid before sending
+            if (!mainWindow.isDestroyed()) {
+                ipcWebContentsSend("statistics", mainWindow.webContents, { cpuUsage, ramUsage, storageData: storageData.usage });
+            }
+        } catch (error) {
+            console.error('[Polling] Error during resource poll:', error);
+            // Don't stop polling on error, just log it
+        }
     }, POLLING_INTERVAL);
+
+    activePollingInterval = intervalId;
     return intervalId;
 }
 
 export function cleanupPolling(intervalId: ReturnType<typeof setInterval> | null): void {
     if (intervalId) {
         clearInterval(intervalId);
+        intervalId = null;
+    }
+    // Also clear the active interval reference
+    if (activePollingInterval) {
+        clearInterval(activePollingInterval);
+        activePollingInterval = null;
     }
 }
 
