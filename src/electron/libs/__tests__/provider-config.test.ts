@@ -77,12 +77,16 @@ describe("sanitizeForLog", () => {
   });
 
   it("should prevent log injection by neutralizing newlines", () => {
-    // Simulating a malicious templateId
+    // Simulating a malicious templateId with newline injection attempt
     const maliciousInput = "template_A\n[COMPROMISED] User logged in";
     // eslint-disable-next-line no-control-regex
     const result = maliciousInput.replace(/[\x00-\x1f\x7f]/g, "_");
-    expect(result).toBe("template_A_COMPROMISED] User logged in");
-    // The newline is replaced, breaking the injection
+    // Only control characters are replaced, [ is a valid ASCII character
+    expect(result).toBe("template_A_[COMPROMISED] User logged in");
+    // The newline is replaced, breaking the injection attack
     expect(result.split("\n").length).toBe(1);
+    // Verify no newlines remain in the result
+    expect(result.includes("\n")).toBe(false);
+    expect(result.includes("\r")).toBe(false);
   });
 });
