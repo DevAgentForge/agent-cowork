@@ -73,12 +73,24 @@ export function Sidebar({
         className="absolute top-0 left-0 right-0 h-12"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       />
-      <button
-        className="w-full rounded-xl border border-ink-900/10 bg-surface px-4 py-2.5 text-sm font-medium text-ink-700 hover:bg-surface-tertiary hover:border-ink-900/20 transition-colors"
-        onClick={onNewSession}
-      >
-        + New Task
-      </button>
+      <div className="flex gap-2">
+        <button
+          className="flex-1 rounded-xl border border-ink-900/10 bg-surface px-4 py-2.5 text-sm font-medium text-ink-700 hover:bg-surface-tertiary hover:border-ink-900/20 transition-colors"
+          onClick={onNewSession}
+        >
+          + New Task
+        </button>
+        <button
+          className="rounded-xl border border-ink-900/10 bg-surface px-3 py-2.5 text-sm text-ink-700 hover:bg-surface-tertiary hover:border-ink-900/20 transition-colors"
+          onClick={() => useAppStore.getState().setShowSettingsModal(true)}
+          aria-label="Settings"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24" />
+          </svg>
+        </button>
+      </div>
       <div className="flex flex-col gap-2 overflow-y-auto">
         {sessionList.length === 0 && (
           <div className="rounded-xl border border-ink-900/5 bg-surface px-4 py-5 text-center text-xs text-muted">

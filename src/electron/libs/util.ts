@@ -1,4 +1,4 @@
-import { claudeCodeEnv } from "./claude-settings.js";
+import { getCurrentApiConfig, buildEnvForConfig } from "./claude-settings.js";
 import { unstable_v2_prompt } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 import { app } from "electron";
@@ -45,6 +45,16 @@ export function getEnhancedEnv(): Record<string, string | undefined> {
 }
 
 export const enhancedEnv = getEnhancedEnv();
+
+// 从用户输入中提取标题的辅助函数
+function extractTitleFromInput(userIntent: string): string {
+  // 移除换行和多余空格
+  const cleaned = userIntent.trim().replace(/\s+/g, ' ');
+  // 取前 50 个字符
+  const title = cleaned.slice(0, 50);
+  // 如果被截断，添加省略号
+  return cleaned.length > 50 ? `${title}...` : title;
+}
 
 export const generateSessionTitle = async (userIntent: string | null) => {
   if (!userIntent) return "New Session";
