@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ServerEvent, SessionStatus, StreamMessage, SafeProviderConfig, EnrichedMessage } from "../types";
+import type { ServerEvent, SessionStatus, StreamMessage, SafeProviderConfig, EnrichedMessage, PermissionMode } from "../types";
 
 /**
  * H-004: Generate unique client-side ID for React reconciliation
@@ -59,6 +59,63 @@ export type SessionView = {
   hydrated: boolean;
 };
 
+/**
+ * Session configuration for new sessions
+ * These settings are applied when starting a new session
+ */
+export type SessionConfig = {
+  permissionMode: PermissionMode;
+  allowedTools: string;
+};
+
+/**
+ * Default session configuration
+ * - permissionMode: "secure" - Requires user approval for tool execution
+ * - allowedTools: All tools allowed (empty string means no restrictions)
+ */
+const DEFAULT_SESSION_CONFIG: SessionConfig = {
+  permissionMode: "secure",
+  allowedTools: "",  // Empty = all tools allowed in secure mode (with approval)
+};
+
+/**
+ * Preset configurations for common use cases
+ */
+export const SESSION_PRESETS = {
+  secure: {
+    name: "Secure Mode",
+    description: "Requires approval for each tool execution",
+    config: {
+      permissionMode: "secure" as PermissionMode,
+      allowedTools: "",
+    },
+  },
+  restricted: {
+    name: "Restricted Mode",
+    description: "Only allows safe read/edit operations with approval",
+    config: {
+      permissionMode: "secure" as PermissionMode,
+      allowedTools: "Read,Edit,Glob,Grep",
+    },
+  },
+  free: {
+    name: "Free Mode (Unsafe)",
+    description: "Bypasses all permission checks - use with caution",
+    config: {
+      permissionMode: "free" as PermissionMode,
+      allowedTools: "",  // All tools allowed
+    },
+  },
+  developer: {
+    name: "Developer Mode",
+    description: "Full access with auto-approval for all tools",
+    config: {
+      permissionMode: "free" as PermissionMode,
+      allowedTools: "",
+    },
+  },
+};
+
 interface AppState {
   sessions: Record<string, SessionView>;
   activeSessionId: string | null;
@@ -72,6 +129,9 @@ interface AppState {
   providers: SafeProviderConfig[];
   selectedProviderId: string | null;
   showProviderModal: boolean;
+
+  // Session configuration state
+  sessionConfig: SessionConfig;
 
   setPrompt: (prompt: string) => void;
   setCwd: (cwd: string) => void;
@@ -87,6 +147,13 @@ interface AppState {
   addOrUpdateProvider: (provider: SafeProviderConfig) => void;
   removeProvider: (providerId: string) => void;
   handleServerEvent: (event: ServerEvent) => void;
+
+  // Session configuration actions
+  setSessionConfig: (config: Partial<SessionConfig>) => void;
+  setPermissionMode: (mode: PermissionMode) => void;
+  setAllowedTools: (tools: string) => void;
+  applyPreset: (presetKey: keyof typeof SESSION_PRESETS) => void;
+  resetSessionConfig: () => void;
 }
 
 function createSession(id: string): SessionView {
@@ -106,6 +173,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   providers: [],
   selectedProviderId: null,
   showProviderModal: false,
+  sessionConfig: { ...DEFAULT_SESSION_CONFIG },
 
   setPrompt: (prompt) => set({ prompt }),
   setCwd: (cwd) => set({ cwd }),
@@ -115,6 +183,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowProviderModal: (showProviderModal) => set({ showProviderModal }),
   setActiveSessionId: (id) => set({ activeSessionId: id }),
   setSelectedProviderId: (selectedProviderId) => set({ selectedProviderId }),
+
+  // Session configuration actions
+  setSessionConfig: (config) => set((state) => ({
+    sessionConfig: { ...state.sessionConfig, ...config }
+  })),
+
+  setPermissionMode: (mode) => set((state) => ({
+    sessionConfig: { ...state.sessionConfig, permissionMode: mode }
+  })),
+
+  setAllowedTools: (tools) => set((state) => ({
+    sessionConfig: { ...state.sessionConfig, allowedTools: tools }
+  })),
+
+  applyPreset: (presetKey) => {
+    const preset = SESSION_PRESETS[presetKey];
+    if (preset) {
+      set({ sessionConfig: { ...preset.config } });
+    }
+  },
+
+  resetSessionConfig: () => set({ sessionConfig: { ...DEFAULT_SESSION_CONFIG } }),
 
   markHistoryRequested: (sessionId) => {
     set((state) => {

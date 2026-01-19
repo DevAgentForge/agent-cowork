@@ -15,6 +15,13 @@ export type EnrichedMessage = StreamMessage & { _clientId: string };
 
 export type SessionStatus = "idle" | "running" | "completed" | "error";
 
+/**
+ * Permission mode for tool execution
+ * - "secure": Requires user approval for each tool execution (default)
+ * - "free": Bypasses permission checks (like --dangerously-skip-permissions)
+ */
+export type PermissionMode = "secure" | "free";
+
 export type SessionInfo = {
   id: string;
   title: string;
@@ -74,7 +81,7 @@ export type ServerEvent =
 
 // Client -> Server events
 export type ClientEvent =
-  | { type: "session.start"; payload: { title: string; prompt: string; cwd?: string; allowedTools?: string; providerId?: string } }
+  | { type: "session.start"; payload: { title: string; prompt: string; cwd?: string; allowedTools?: string; providerId?: string; permissionMode?: PermissionMode } }
   | { type: "session.continue"; payload: { sessionId: string; prompt: string; providerId?: string } }
   | { type: "session.stop"; payload: { sessionId: string } }
   | { type: "session.delete"; payload: { sessionId: string } }

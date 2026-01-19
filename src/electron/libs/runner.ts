@@ -37,9 +37,9 @@ interface PendingPermissionEntry {
   toolUseId: string;
   toolName: string;
   input: unknown;
-  resolve: (result: PermissionResult) => void;
+  resolve: (result: { behavior: "allow" | "deny"; updatedInput?: unknown; message?: string }) => void;
   createdAt: number;
-  timeoutId: ReturnType<typeof setTimeout>;
+  timeoutId?: ReturnType<typeof setTimeout>;
 }
 
 export type RunnerOptions = {
@@ -59,11 +59,52 @@ export type RunnerHandle = {
 
 const DEFAULT_CWD = process.cwd();
 
+// ==================== CACHED SETTINGS ====================
+// PERFORMANCE: Cache settings at module level to avoid repeated disk reads
+// These are loaded once and reused across all sessions
+
+let cachedSettingSources: SettingSource[] | null = null;
+let cachedCustomAgents: Record<string, AgentDefinition> | null = null;
+let cachedLocalPlugins: SdkPluginConfig[] | null = null;
+let cacheInitialized = false;
+
+/**
+ * Initialize cached settings (call once at startup)
+ * This pre-loads all settings to avoid blocking on first session start
+ */
+export function initializeRunnerCache(): void {
+  if (cacheInitialized) return;
+
+  try {
+    cachedSettingSources = getSettingSourcesInternal();
+    cachedCustomAgents = getCustomAgentsInternal();
+    cachedLocalPlugins = getLocalPluginsInternal();
+    cacheInitialized = true;
+    console.log("[Runner] Settings cache initialized");
+  } catch (error) {
+    console.warn("[Runner] Failed to initialize settings cache:", error);
+    // Will fall back to loading on demand
+  }
+}
+
+/**
+ * Invalidate cache (call when settings change)
+ */
+export function invalidateRunnerCache(): void {
+  cachedSettingSources = null;
+  cachedCustomAgents = null;
+  cachedLocalPlugins = null;
+  cacheInitialized = false;
+  console.log("[Runner] Settings cache invalidated");
+}
+
+// ==================== INTERNAL LOADERS ====================
+
 /**
  * Get setting sources for loading ~/.claude/ configuration
  * This enables agents, skills, hooks, and plugins from user settings
  */
-function getSettingSources(): SettingSource[] {
+function getSettingSourcesInternal(): SettingSource[] {
   return ["user", "project", "local"];
 }
 
@@ -71,7 +112,7 @@ function getSettingSources(): SettingSource[] {
  * Get custom agents from settings manager
  * Converts activeSkills to AgentDefinition format for SDK
  */
-function getCustomAgents(): Record<string, AgentDefinition> {
+function getCustomAgentsInternal(): Record<string, AgentDefinition> {
   const agents: Record<string, AgentDefinition> = {};
   const skills = settingsManager.getActiveSkills();
 
@@ -93,14 +134,12 @@ function getCustomAgents(): Record<string, AgentDefinition> {
  * Get local plugins from ~/.claude/plugins/ directory
  * SECURITY: Validates paths to prevent path traversal attacks (CWE-22)
  */
-function getLocalPlugins(): SdkPluginConfig[] {
+function getLocalPluginsInternal(): SdkPluginConfig[] {
   const plugins: SdkPluginConfig[] = [];
   const pluginsDir = join(homedir(), ".claude", "plugins");
 
-  if (existsSync(pluginsDir)) {
-    // The SDK will scan this directory automatically when settingSources includes 'user'
-    // We can add explicit plugin paths here if needed
-    console.log(`[Runner] Plugins directory exists: ${pluginsDir}`);
+  if (!existsSync(pluginsDir)) {
+    return plugins;
   }
 
   // Get enabled plugins from settings
@@ -125,13 +164,32 @@ function getLocalPlugins(): SdkPluginConfig[] {
           !relPath.startsWith(".." + sep) && relPath !== "..";
         if (isInsideDir) {
           plugins.push({ type: "local", path: pluginPath });
-          console.log(`[Runner] Adding plugin: ${name}`);
         }
       }
     }
   }
 
   return plugins;
+}
+
+// ==================== PUBLIC GETTERS (CACHED) ====================
+
+function getSettingSources(): SettingSource[] {
+  if (cachedSettingSources) return cachedSettingSources;
+  cachedSettingSources = getSettingSourcesInternal();
+  return cachedSettingSources;
+}
+
+function getCustomAgents(): Record<string, AgentDefinition> {
+  if (cachedCustomAgents) return cachedCustomAgents;
+  cachedCustomAgents = getCustomAgentsInternal();
+  return cachedCustomAgents;
+}
+
+function getLocalPlugins(): SdkPluginConfig[] {
+  if (cachedLocalPlugins) return cachedLocalPlugins;
+  cachedLocalPlugins = getLocalPluginsInternal();
+  return cachedLocalPlugins;
 }
 
 /**
@@ -198,31 +256,43 @@ export function createCanUseTool(
 
   /**
    * Periodic cleanup of stale entries
+   * SECURITY FIX: Collect entries to delete first, then delete to avoid
+   * modifying Map during iteration (CWE-362 race condition)
    */
   function startPeriodicCleanup(): void {
     if (cleanupIntervalId) return; // Already running
 
     cleanupIntervalId = setInterval(() => {
       const now = Date.now();
-      let cleanedCount = 0;
+      // Collect entries to cleanup first to avoid modifying Map during iteration
+      const entriesToCleanup: Array<[string, PendingPermissionEntry]> = [];
 
       for (const [toolUseId, entry] of session.pendingPermissions) {
-        // Type guard for entry with createdAt
-        if ("createdAt" in Object(entry) && typeof (entry as PendingPermissionEntry).createdAt === "number") {
-          const entryTyped = entry as PendingPermissionEntry;
-          if (entryTyped.createdAt < now - fullConfig.staleThresholdMs) {
-            // Entry is stale - cleanup
-            console.warn(
-              `[Runner] Cleaning up stale permission request: ${entryTyped.toolName} (${toolUseId})`
-            );
-            cleanupEntry(toolUseId, entryTyped);
-            cleanedCount++;
+        // DEFENSIVE FIX: Try-catch to handle race conditions where entry may be deleted
+        try {
+          // Type guard for entry with createdAt
+          if (entry && typeof entry === "object" && "createdAt" in entry) {
+            const createdAt = (entry as PendingPermissionEntry).createdAt;
+            if (typeof createdAt === "number" && createdAt < now - fullConfig.staleThresholdMs) {
+              entriesToCleanup.push([toolUseId, entry as PendingPermissionEntry]);
+            }
           }
+        } catch {
+          // Entry may have been deleted during iteration, skip it
+          console.warn(`[Runner] Entry ${toolUseId} was removed during cleanup iteration`);
         }
       }
 
-      if (cleanedCount > 0) {
-        console.log(`[Runner] Cleaned up ${cleanedCount} stale permission entries`);
+      // Now safely cleanup collected entries
+      for (const [toolUseId, entryTyped] of entriesToCleanup) {
+        console.warn(
+          `[Runner] Cleaning up stale permission request: ${entryTyped.toolName} (${toolUseId})`
+        );
+        cleanupEntry(toolUseId, entryTyped);
+      }
+
+      if (entriesToCleanup.length > 0) {
+        console.log(`[Runner] Cleaned up ${entriesToCleanup.length} stale permission entries`);
       }
     }, fullConfig.cleanupIntervalMs);
   }
@@ -230,11 +300,28 @@ export function createCanUseTool(
   // Start periodic cleanup when first permission is requested
   let cleanupStarted = false;
 
+  /**
+   * Stop periodic cleanup - called when session ends
+   * MEMORY LEAK FIX: Ensures interval is cleared to prevent leaks
+   */
+  function stopPeriodicCleanup(): void {
+    if (cleanupIntervalId) {
+      clearInterval(cleanupIntervalId);
+      cleanupIntervalId = null;
+      console.log("[Runner] Stopped periodic permission cleanup");
+    }
+  }
+
   return async (toolName: string, input: unknown, { signal }: { signal: AbortSignal }) => {
     // Start periodic cleanup on first use
     if (!cleanupStarted) {
       startPeriodicCleanup();
       cleanupStarted = true;
+
+      // MEMORY LEAK FIX: Clear interval when session is aborted
+      signal.addEventListener("abort", () => {
+        stopPeriodicCleanup();
+      }, { once: true });
     }
 
     const isAskUserQuestion = toolName === "AskUserQuestion";
@@ -262,14 +349,25 @@ export function createCanUseTool(
     // Check if we're exceeding the maximum pending permissions limit
     if (session.pendingPermissions.size >= fullConfig.maxPendingPermissions) {
       // First, try to cleanup stale entries
+      // SECURITY FIX: Collect entries first to avoid modifying Map during iteration (CWE-362)
       const now = Date.now();
+      const staleEntries: Array<[string, PendingPermissionEntry]> = [];
       for (const [toolUseId, entry] of session.pendingPermissions) {
-        if ("createdAt" in Object(entry) && typeof (entry as PendingPermissionEntry).createdAt === "number") {
-          const entryTyped = entry as PendingPermissionEntry;
-          if (entryTyped.createdAt < now - fullConfig.staleThresholdMs) {
-            cleanupEntry(toolUseId, entryTyped);
+        // DEFENSIVE FIX: Try-catch to handle race conditions
+        try {
+          if (entry && typeof entry === "object" && "createdAt" in entry) {
+            const createdAt = (entry as PendingPermissionEntry).createdAt;
+            if (typeof createdAt === "number" && createdAt < now - fullConfig.staleThresholdMs) {
+              staleEntries.push([toolUseId, entry as PendingPermissionEntry]);
+            }
           }
+        } catch {
+          // Entry may have been deleted during iteration, skip it
         }
+      }
+      // Now safely cleanup collected stale entries
+      for (const [toolUseId, entryTyped] of staleEntries) {
+        cleanupEntry(toolUseId, entryTyped);
       }
 
       // If still at limit, deny new request
@@ -297,9 +395,9 @@ export function createCanUseTool(
         toolName,
         input,
         createdAt,
-        resolve: (result: PermissionResult) => {
+        resolve: (result: { behavior: "allow" | "deny"; updatedInput?: unknown; message?: string }) => {
           cleanupEntry(toolUseId, entry);
-          resolve(result);
+          resolve(result as PermissionResult);
         }
       };
 
@@ -309,7 +407,7 @@ export function createCanUseTool(
           `[Runner] Permission request timed out for tool ${toolName} (${toolUseId})`
         );
         cleanupEntry(toolUseId, entry);
-        resolve({ behavior: "deny", message: "Permission request timed out after 5 minutes" });
+        resolve({ behavior: "deny", message: "Permission request timed out after 5 minutes" } as PermissionResult);
       }, fullConfig.permissionTimeoutMs);
 
       entry.timeoutId = timeoutId;
@@ -337,9 +435,9 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
 
   // SECURITY: providerEnv is already prepared by ipc-handlers with decrypted token
   // Tokens are decrypted on-demand in main process and passed here as env vars
-  // Note: Debug logging removed to prevent accidental token exposure
   const customEnv = providerEnv || {};
-  console.log(`[Runner] customEnv keys:`, Object.keys(customEnv));
+  // L-001: Only log count of custom env vars (not keys) to avoid information disclosure
+  console.log(`[Runner] Custom env vars configured: ${Object.keys(customEnv).length}`);
 
   const sendMessage = (message: SDKMessage) => {
     onEvent({
@@ -370,12 +468,12 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
       const modelUsed = customEnv.ANTHROPIC_MODEL || enhancedEnv.ANTHROPIC_MODEL || "default";
       console.log(`[Runner] Starting session with model: ${modelUsed}`);
 
-      // Get settings for agents, plugins, and hooks
+      // PERFORMANCE: Use cached settings (pre-loaded at startup)
       const settingSources = getSettingSources();
       const customAgents = getCustomAgents();
       const plugins = getLocalPlugins();
 
-      console.log(`[Runner] Loaded ${customAgents.length} custom agents, ${plugins.length} plugins`);
+      console.log(`[Runner] Using ${Object.keys(customAgents).length} custom agents, ${plugins.length} plugins`);
 
       const q = query({
         prompt,

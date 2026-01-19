@@ -2,7 +2,14 @@ import { BrowserWindow } from "electron";
 import type { ClientEvent, ServerEvent } from "./types.js";
 import { runClaude, type RunnerHandle } from "./libs/runner.js";
 import { SessionStore } from "./libs/session-store.js";
-import { loadProvidersSafe, saveProviderFromPayload, deleteProvider, getProviderEnvById, toSafeProvider, getProvider } from "./libs/provider-config.js";
+import {
+  loadProvidersSafe,
+  saveProviderFromPayload,
+  deleteProvider,
+  getProviderEnvById,
+  toSafeProvider,
+  getProvider,
+} from "./libs/provider-config.js";
 import { orchestratorAgent } from "./libs/orchestrator-agent.js";
 import { app } from "electron";
 import { join } from "path";
@@ -30,13 +37,18 @@ function checkRateLimit(eventType: string): boolean {
 
   // Reset or create entry if window expired
   if (!entry || now > entry.resetTime) {
-    rateLimitState.set(eventType, { count: 1, resetTime: now + RATE_WINDOW_MS });
+    rateLimitState.set(eventType, {
+      count: 1,
+      resetTime: now + RATE_WINDOW_MS,
+    });
     return true;
   }
 
   // Check limit
   if (entry.count >= RATE_LIMIT) {
-    console.warn(`[IPC] Rate limit exceeded for ${eventType} (${entry.count} requests in window)`);
+    console.warn(
+      `[IPC] Rate limit exceeded for ${eventType} (${entry.count} requests in window)`,
+    );
     return false;
   }
 
@@ -54,7 +66,9 @@ function broadcast(event: ServerEvent) {
 
 function emit(event: ServerEvent) {
   if (event.type === "session.status") {
-    sessions.updateSession(event.payload.sessionId, { status: event.payload.status });
+    sessions.updateSession(event.payload.sessionId, {
+      status: event.payload.status,
+    });
   }
   if (event.type === "stream.message") {
     sessions.recordMessage(event.payload.sessionId, event.payload.message);
@@ -62,7 +76,7 @@ function emit(event: ServerEvent) {
   if (event.type === "stream.user_prompt") {
     sessions.recordMessage(event.payload.sessionId, {
       type: "user_prompt",
-      prompt: event.payload.prompt
+      prompt: event.payload.prompt,
     });
   }
   broadcast(event);
@@ -77,7 +91,7 @@ export function handleClientEvent(event: ClientEvent) {
   if (event.type === "session.list") {
     emit({
       type: "session.list",
-      payload: { sessions: sessions.listSessions() }
+      payload: { sessions: sessions.listSessions() },
     });
     return;
   }
@@ -87,7 +101,7 @@ export function handleClientEvent(event: ClientEvent) {
     if (!history) {
       emit({
         type: "runner.error",
-        payload: { message: "Unknown session" }
+        payload: { message: "Unknown session" },
       });
       return;
     }
@@ -96,8 +110,8 @@ export function handleClientEvent(event: ClientEvent) {
       payload: {
         sessionId: history.session.id,
         status: history.session.status,
-        messages: history.messages
-      }
+        messages: history.messages,
+      },
     });
     return;
   }
@@ -108,30 +122,44 @@ export function handleClientEvent(event: ClientEvent) {
       title: event.payload.title,
       allowedTools: event.payload.allowedTools,
       prompt: event.payload.prompt,
-      permissionMode: event.payload.permissionMode
+      permissionMode: event.payload.permissionMode,
     });
 
     // Get provider env vars if providerId is provided (decryption happens here in main process)
-    console.log(`[IPC] session.start - providerId: ${event.payload.providerId || "none (using default)"}`);
-    const providerEnv = event.payload.providerId ? getProviderEnvById(event.payload.providerId) : null;
-    console.log(`[IPC] session.start - providerEnv:`, providerEnv ? {
-      ANTHROPIC_MODEL: providerEnv.ANTHROPIC_MODEL,
-      ANTHROPIC_BASE_URL: providerEnv.ANTHROPIC_BASE_URL,
-      hasToken: !!providerEnv.ANTHROPIC_AUTH_TOKEN
-    } : "null");
+    console.log(
+      `[IPC] session.start - providerId: ${event.payload.providerId || "none (using default)"}`,
+    );
+    const providerEnv = event.payload.providerId
+      ? getProviderEnvById(event.payload.providerId)
+      : null;
+    console.log(
+      `[IPC] session.start - providerEnv:`,
+      providerEnv
+        ? {
+            ANTHROPIC_MODEL: providerEnv.ANTHROPIC_MODEL,
+            ANTHROPIC_BASE_URL: providerEnv.ANTHROPIC_BASE_URL,
+            hasToken: !!providerEnv.ANTHROPIC_AUTH_TOKEN,
+          }
+        : "null",
+    );
 
     sessions.updateSession(session.id, {
       status: "running",
-      lastPrompt: event.payload.prompt
+      lastPrompt: event.payload.prompt,
     });
     emit({
       type: "session.status",
-      payload: { sessionId: session.id, status: "running", title: session.title, cwd: session.cwd }
+      payload: {
+        sessionId: session.id,
+        status: "running",
+        title: session.title,
+        cwd: session.cwd,
+      },
     });
 
     emit({
       type: "stream.user_prompt",
-      payload: { sessionId: session.id, prompt: event.payload.prompt }
+      payload: { sessionId: session.id, prompt: event.payload.prompt },
     });
 
     runClaude({
@@ -142,7 +170,7 @@ export function handleClientEvent(event: ClientEvent) {
       onSessionUpdate: (updates) => {
         sessions.updateSession(session.id, updates);
       },
-      providerEnv
+      providerEnv,
     })
       .then((handle) => {
         runnerHandles.set(session.id, handle);
@@ -157,8 +185,8 @@ export function handleClientEvent(event: ClientEvent) {
             status: "error",
             title: session.title,
             cwd: session.cwd,
-            error: String(error)
-          }
+            error: String(error),
+          },
         });
       });
 
@@ -170,7 +198,7 @@ export function handleClientEvent(event: ClientEvent) {
     if (!session) {
       emit({
         type: "runner.error",
-        payload: { message: "Unknown session" }
+        payload: { message: "Unknown session" },
       });
       return;
     }
@@ -178,23 +206,36 @@ export function handleClientEvent(event: ClientEvent) {
     if (!session.claudeSessionId) {
       emit({
         type: "runner.error",
-        payload: { sessionId: session.id, message: "Session has no resume id yet." }
+        payload: {
+          sessionId: session.id,
+          message: "Session has no resume id yet.",
+        },
       });
       return;
     }
 
     // Get provider env vars if providerId is provided (decryption happens here in main process)
-    const providerEnv = event.payload.providerId ? getProviderEnvById(event.payload.providerId) : null;
+    const providerEnv = event.payload.providerId
+      ? getProviderEnvById(event.payload.providerId)
+      : null;
 
-    sessions.updateSession(session.id, { status: "running", lastPrompt: event.payload.prompt });
+    sessions.updateSession(session.id, {
+      status: "running",
+      lastPrompt: event.payload.prompt,
+    });
     emit({
       type: "session.status",
-      payload: { sessionId: session.id, status: "running", title: session.title, cwd: session.cwd }
+      payload: {
+        sessionId: session.id,
+        status: "running",
+        title: session.title,
+        cwd: session.cwd,
+      },
     });
 
     emit({
       type: "stream.user_prompt",
-      payload: { sessionId: session.id, prompt: event.payload.prompt }
+      payload: { sessionId: session.id, prompt: event.payload.prompt },
     });
 
     runClaude({
@@ -205,7 +246,7 @@ export function handleClientEvent(event: ClientEvent) {
       onSessionUpdate: (updates) => {
         sessions.updateSession(session.id, updates);
       },
-      providerEnv
+      providerEnv,
     })
       .then((handle) => {
         runnerHandles.set(session.id, handle);
@@ -219,8 +260,8 @@ export function handleClientEvent(event: ClientEvent) {
             status: "error",
             title: session.title,
             cwd: session.cwd,
-            error: String(error)
-          }
+            error: String(error),
+          },
         });
       });
 
@@ -240,7 +281,12 @@ export function handleClientEvent(event: ClientEvent) {
     sessions.updateSession(session.id, { status: "idle" });
     emit({
       type: "session.status",
-      payload: { sessionId: session.id, status: "idle", title: session.title, cwd: session.cwd }
+      payload: {
+        sessionId: session.id,
+        status: "idle",
+        title: session.title,
+        cwd: session.cwd,
+      },
     });
     return;
   }
@@ -258,7 +304,7 @@ export function handleClientEvent(event: ClientEvent) {
     sessions.deleteSession(sessionId);
     emit({
       type: "session.deleted",
-      payload: { sessionId }
+      payload: { sessionId },
     });
     return;
   }
@@ -281,7 +327,7 @@ export function handleClientEvent(event: ClientEvent) {
     const providers = loadProvidersSafe();
     emit({
       type: "provider.list",
-      payload: { providers }
+      payload: { providers },
     });
     return;
   }
@@ -292,14 +338,15 @@ export function handleClientEvent(event: ClientEvent) {
       const savedProvider = saveProviderFromPayload(event.payload.provider);
       emit({
         type: "provider.saved",
-        payload: { provider: savedProvider }
+        payload: { provider: savedProvider },
       });
     } catch (error) {
       // Handle validation errors (SSRF prevention, encryption failures)
-      const message = error instanceof Error ? error.message : "Failed to save provider";
+      const message =
+        error instanceof Error ? error.message : "Failed to save provider";
       emit({
         type: "runner.error",
-        payload: { message: `Provider save failed: ${message}` }
+        payload: { message: `Provider save failed: ${message}` },
       });
     }
     return;
@@ -310,7 +357,7 @@ export function handleClientEvent(event: ClientEvent) {
     if (deleted) {
       emit({
         type: "provider.deleted",
-        payload: { providerId: event.payload.providerId }
+        payload: { providerId: event.payload.providerId },
       });
     }
     return;
@@ -322,7 +369,7 @@ export function handleClientEvent(event: ClientEvent) {
     if (provider) {
       emit({
         type: "provider.data",
-        payload: { provider: toSafeProvider(provider) }
+        payload: { provider: toSafeProvider(provider) },
       });
     }
     return;

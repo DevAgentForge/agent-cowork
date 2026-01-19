@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ClientEvent } from "../types";
 import { useAppStore } from "../store/useAppStore";
 
-const DEFAULT_ALLOWED_TOOLS = "Read,Edit,Bash";
 const MAX_ROWS = 12;
 const LINE_HEIGHT = 21;
 const MAX_HEIGHT = MAX_ROWS * LINE_HEIGHT;
@@ -17,6 +16,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const sessions = useAppStore((state) => state.sessions);
   const selectedProviderId = useAppStore((state) => state.selectedProviderId);
+  const sessionConfig = useAppStore((state) => state.sessionConfig);
   const setPrompt = useAppStore((state) => state.setPrompt);
   const setPendingStart = useAppStore((state) => state.setPendingStart);
   const setGlobalError = useAppStore((state) => state.setGlobalError);
@@ -38,14 +38,19 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
         setGlobalError("Failed to get session title.");
         return;
       }
+
+      // Use session configuration from store
+      // - permissionMode: "secure" | "free" (controls bypass permissions)
+      // - allowedTools: comma-separated list of allowed tools (empty = all allowed)
       sendEvent({
         type: "session.start",
         payload: {
           title,
           prompt,
           cwd: cwd.trim() || undefined,
-          allowedTools: DEFAULT_ALLOWED_TOOLS,
-          providerId: selectedProviderId || undefined
+          allowedTools: sessionConfig.allowedTools || undefined,
+          providerId: selectedProviderId || undefined,
+          permissionMode: sessionConfig.permissionMode
         }
       });
     } else {
@@ -59,7 +64,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
       });
     }
     setPrompt("");
-  }, [activeSession, activeSessionId, cwd, prompt, selectedProviderId, sendEvent, setGlobalError, setPendingStart, setPrompt]);
+  }, [activeSession, activeSessionId, cwd, prompt, selectedProviderId, sessionConfig, sendEvent, setGlobalError, setPendingStart, setPrompt]);
 
   const handleStop = useCallback(() => {
     if (!activeSessionId) return;
@@ -79,9 +84,12 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
 
 export function PromptInput({ sendEvent }: PromptInputProps) {
   const { prompt, setPrompt, isRunning, handleSend, handleStop } = usePromptActions(sendEvent);
+  const sessionConfig = useAppStore((state) => state.sessionConfig);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const heightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPromptLengthRef = useRef<number>(0);
+
+  const isFreeMode = sessionConfig.permissionMode === "free";
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || e.shiftKey) return;
@@ -139,11 +147,21 @@ export function PromptInput({ sendEvent }: PromptInputProps) {
 
   return (
     <section className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-surface via-surface to-transparent pb-6 px-2 lg:pb-8 pt-8 lg:ml-[280px]">
-      <div className="mx-auto flex w-full max-w-full items-end gap-3 rounded-2xl border border-ink-900/10 bg-surface px-4 py-3 shadow-card lg:max-w-3xl">
+      <div className={`mx-auto flex w-full max-w-full items-end gap-3 rounded-2xl border bg-surface px-4 py-3 shadow-card lg:max-w-3xl ${
+        isFreeMode ? "border-warning/30" : "border-ink-900/10"
+      }`}>
+        {/* Free mode indicator */}
+        {isFreeMode && (
+          <div className="flex items-center gap-1.5 text-warning shrink-0" title="Free Mode: Tools execute without approval">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+        )}
         <textarea
           rows={1}
           className="flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-800 placeholder:text-muted focus:outline-none"
-          placeholder="Describe what you want agent to handle..."
+          placeholder={isFreeMode ? "Free mode: Tools execute without approval..." : "Describe what you want agent to handle..."}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -151,7 +169,13 @@ export function PromptInput({ sendEvent }: PromptInputProps) {
           ref={promptRef}
         />
         <button
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${isRunning ? "bg-error text-white hover:bg-error/90" : "bg-accent text-white hover:bg-accent-hover"}`}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+            isRunning
+              ? "bg-error text-white hover:bg-error/90"
+              : isFreeMode
+                ? "bg-warning text-white hover:bg-warning/90"
+                : "bg-accent text-white hover:bg-accent-hover"
+          }`}
           onClick={isRunning ? handleStop : handleSend}
           aria-label={isRunning ? "Stop session" : "Send prompt"}
         >
