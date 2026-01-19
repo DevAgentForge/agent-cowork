@@ -2,6 +2,21 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { loadApiConfig, saveApiConfig, type ApiConfig } from "./config-store.js";
+import { app } from "electron";
+
+// Get Claude Code CLI path
+export function getClaudeCodePath(): string {
+  if (app.isPackaged) {
+    // For packaged apps, the SDK needs the explicit path to the CLI
+    // The path should point to the unpackaged asar.unpacked directory
+    return join(
+      process.resourcesPath,
+      'app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js'
+    );
+  }
+  // In development, use node_modules CLI
+  return join(app.getAppPath(), 'node_modules/@anthropic-ai/claude-agent-sdk/cli.js');
+}
 
 // 获取当前有效的配置（优先界面配置，回退到文件配置）
 export function getCurrentApiConfig(): ApiConfig | null {
