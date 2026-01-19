@@ -118,6 +118,11 @@ app.on("ready", () => {
         return getCurrentApiConfig();
     });
 
+    ipcMainHandle("check-api-config", () => {
+        const config = getCurrentApiConfig();
+        return { hasConfig: config !== null, config };
+    });
+
     ipcMainHandle("save-api-config", (_: any, config: any) => {
         try {
             saveApiConfig(config);

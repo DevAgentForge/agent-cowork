@@ -43,6 +43,8 @@ function App() {
   const cwd = useAppStore((s) => s.cwd);
   const setCwd = useAppStore((s) => s.setCwd);
   const pendingStart = useAppStore((s) => s.pendingStart);
+  const apiConfigChecked = useAppStore((s) => s.apiConfigChecked);
+  const setApiConfigChecked = useAppStore((s) => s.setApiConfigChecked);
 
   // Helper function to extract partial message content
   const getPartialMessageContent = (eventMessage: any) => {
@@ -107,6 +109,21 @@ function App() {
     resetToLatest,
     totalMessages,
   } = useMessageWindow(messages, permissionRequests, activeSessionId);
+
+  // 启动时检查 API 配置
+  useEffect(() => {
+    if (!apiConfigChecked) {
+      window.electron.checkApiConfig().then((result) => {
+        setApiConfigChecked(true);
+        if (!result.hasConfig) {
+          setShowSettingsModal(true);
+        }
+      }).catch((err) => {
+        console.error("Failed to check API config:", err);
+        setApiConfigChecked(true);
+      });
+    }
+  }, [apiConfigChecked, setApiConfigChecked, setShowSettingsModal]);
 
   useEffect(() => {
     if (connected) sendEvent({ type: "session.list" });

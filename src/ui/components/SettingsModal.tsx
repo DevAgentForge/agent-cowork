@@ -113,7 +113,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <label className="grid gap-1.5">
               <span className="text-xs font-medium text-muted">API Key</span>
               <input
-                type="password"
+                type="string"
                 className="rounded-xl border border-ink-900/10 bg-surface-secondary px-4 py-2.5 text-sm text-ink-800 placeholder:text-muted-light focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/20 transition-colors"
                 placeholder="sk-..."
                 value={apiKey}

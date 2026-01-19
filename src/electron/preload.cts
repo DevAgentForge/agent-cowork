@@ -32,7 +32,9 @@ electron.contextBridge.exposeInMainWorld("electron", {
     getApiConfig: () => 
         ipcInvoke("get-api-config"),
     saveApiConfig: (config: any) => 
-        ipcInvoke("save-api-config", config)
+        ipcInvoke("save-api-config", config),
+    checkApiConfig: () =>
+        ipcInvoke("check-api-config")
 } satisfies Window['electron'])
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(key: Key, ...args: any[]): Promise<EventPayloadMapping[Key]> {

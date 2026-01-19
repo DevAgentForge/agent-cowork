@@ -1,14 +1,13 @@
-import { getCurrentApiConfig, buildEnvForConfig } from "./claude-settings.js";
 import { unstable_v2_prompt } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
-import { claudeCodeEnv } from "./claude-settings.js";
+import { getCurrentApiConfig, buildEnvForConfig} from "./claude-settings.js";
 
 import { app } from "electron";
 import { join } from "path";
 import { homedir } from "os";
 
-// Get Claude Code CLI path for packaged app
-export function getClaudeCodePath(): string | undefined {
+// Get Claude Code CLI path
+export function getClaudeCodePath(): string {
   if (app.isPackaged) {
     // For packaged apps, the SDK needs the explicit path to the CLI
     // The path should point to the unpackaged asar.unpacked directory
@@ -17,8 +16,8 @@ export function getClaudeCodePath(): string | undefined {
       'app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js'
     );
   }
-  // In development, return undefined to let the SDK find the CLI via PATH
-  return undefined;
+  // In development, use node_modules CLI
+  return join(app.getAppPath(), 'node_modules/@anthropic-ai/claude-agent-sdk/cli.js');
 }
 
 // Build enhanced PATH for packaged environment
@@ -39,37 +38,28 @@ export function getEnhancedEnv(): Record<string, string | undefined> {
 
   const currentPath = process.env.PATH || '';
   const newPath = [...additionalPaths, currentPath].join(':');
-
+  const env = buildEnvForConfig(getCurrentApiConfig()!);
   return {
     ...process.env,
     PATH: newPath,
+    ...env,
   };
 }
 
 export const enhancedEnv = getEnhancedEnv();
-
-// 从用户输入中提取标题的辅助函数
-function extractTitleFromInput(userIntent: string): string {
-  // 移除换行和多余空格
-  const cleaned = userIntent.trim().replace(/\s+/g, ' ');
-  // 取前 50 个字符
-  const title = cleaned.slice(0, 50);
-  // 如果被截断，添加省略号
-  return cleaned.length > 50 ? `${title}...` : title;
-}
 
 export const generateSessionTitle = async (userIntent: string | null) => {
   if (!userIntent) return "New Session";
 
   // Get the Claude Code path when needed, not at module load time
   const claudeCodePath = getClaudeCodePath();
-
+  
   try {
     const result: SDKResultMessage = await unstable_v2_prompt(
       `please analynis the following user input to generate a short but clearly title to identify this conversation theme:
       ${userIntent}
       directly output the title, do not include any other content`, {
-      model: claudeCodeEnv.ANTHROPIC_MODEL,
+      model: getCurrentApiConfig()?.model || "claude-sonnet",
       env: enhancedEnv,
       pathToClaudeCodeExecutable: claudeCodePath,
     });

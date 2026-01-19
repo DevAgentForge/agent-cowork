@@ -1,15 +1,5 @@
 import type { SDKMessage, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 
-export type ClaudeSettingsEnv = {
-  ANTHROPIC_AUTH_TOKEN: string;
-  ANTHROPIC_BASE_URL: string;
-  ANTHROPIC_DEFAULT_HAIKU_MODEL: string;
-  ANTHROPIC_DEFAULT_OPUS_MODEL: string;
-  ANTHROPIC_DEFAULT_SONNET_MODEL: string;
-  ANTHROPIC_MODEL: string;
-  API_TIMEOUT_MS: string;
-  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: string;
-};
 
 export type UserPromptMessage = {
   type: "user_prompt";

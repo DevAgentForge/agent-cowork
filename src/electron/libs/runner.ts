@@ -45,20 +45,28 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
       // 获取当前配置
       const config = getCurrentApiConfig();
       
+      if (!config) {
+        onEvent({
+          type: "session.status",
+          payload: { sessionId: session.id, status: "error", title: session.title, cwd: session.cwd, error: "API configuration not found. Please configure API settings." }
+        });
+        return;
+      }
+      
       // 使用 Anthropic SDK
       const env = buildEnvForConfig(config);
       const mergedEnv = {
         ...enhancedEnv,
         ...env
       };
-
+      
       const q = query({
         prompt,
         options: {
           cwd: session.cwd ?? DEFAULT_CWD,
           resume: resumeSessionId,
           abortController,
-          env: enhancedEnv,
+          env: mergedEnv,
           pathToClaudeCodeExecutable: getClaudeCodePath(),
           permissionMode: "bypassPermissions",
           includePartialMessages: true,

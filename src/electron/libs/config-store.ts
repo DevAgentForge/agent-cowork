@@ -8,7 +8,7 @@ export type ApiConfig = {
   apiKey: string;
   baseURL: string;
   model: string;
-  apiType?: ApiType; // 默认为 "anthropic" 以保持向后兼容
+  apiType?: ApiType; // "anthropic" 
 };
 
 const CONFIG_FILE_NAME = "api-config.json";
