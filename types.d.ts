@@ -29,7 +29,7 @@ type SessionTemplate = {
 type StoredSession = {
   id: string;
   title: string;
-  status: "idle" | "running" | "completed" | "error";
+  status: "idle" | "running" | "completed" | "error" | "stopped";
   cwd?: string;
   allowedTools?: string;
   lastPrompt?: string;
@@ -114,7 +114,7 @@ interface Window {
         // Search APIs
         searchSessions: (query: string, options?: { limit?: number; includeMessages?: boolean }) => Promise<StoredSession[]>;
         searchMessages: (sessionId: string, query: string, options?: { limit?: number; includeContext?: boolean }) => Promise<unknown[]>;
-        advancedSearch: (filters: { query?: string; status?: "idle" | "running" | "completed" | "error"; cwd?: string; startDate?: number; endDate?: number; limit?: number }) => Promise<StoredSession[]>;
+        advancedSearch: (filters: { query?: string; status?: "idle" | "running" | "completed" | "error" | "stopped"; cwd?: string; startDate?: number; endDate?: number; limit?: number; offset?: number }) => Promise<StoredSession[]>;
         // Audit Log APIs
         getAuditLogs: (sessionId: string, options?: AuditQueryOptions) => Promise<AuditLogEntry[]>;
         getRecentLogs: (limit?: number) => Promise<AuditLogEntry[]>;
