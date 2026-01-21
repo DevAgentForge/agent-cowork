@@ -20,6 +20,46 @@ export type RunnerHandle = {
 
 const DEFAULT_CWD = process.cwd();
 
+/**
+ * 检测是否是删除操作
+ * @param toolName 工具名称
+ * @param input 工具输入参数
+ * @returns 是否是删除操作
+ */
+function checkIfDeletionOperation(toolName: string, input: unknown): boolean {
+  // Bash 工具需要检查命令内容
+  if (toolName === "Bash" && input && typeof input === "object") {
+    const cmd = (input as Record<string, unknown>).command;
+    if (typeof cmd === "string") {
+      // 检测删除命令
+      const deletionPatterns = [
+        /\brm\s/,           // Unix rm 命令
+        /\brmdir\s/,        // Unix rmdir 命令
+        /del\s/,            // Windows del 命令
+        /rmdir\s/,          // Windows rmdir 命令
+        /Delete-Item/,      // PowerShell
+        /\bunlink\s/,       // unlink 系统调用
+        /\btrash\s/,        // trash 命令
+        /shred\s/,          // 安全删除
+        /wipe\s/,           // wipe 工具
+      ];
+      return deletionPatterns.some(pattern => pattern.test(cmd));
+    }
+  }
+
+  // Write 工具 - 检查是否写入空内容（可能是删除操作）
+  if (toolName === "Write" && input && typeof input === "object") {
+    const writeInput = input as Record<string, unknown>;
+    const content = writeInput.content;
+    // 如果内容为空或很短，可能是删除操作
+    if (typeof content === "string" && content.trim().length === 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 
 export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
   const { prompt, session, resumeSessionId, onEvent, onSessionUpdate } = options;
@@ -68,18 +108,33 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
           abortController,
           env: mergedEnv,
           pathToClaudeCodeExecutable: getClaudeCodePath(),
-          permissionMode: "bypassPermissions",
+          permissionMode: "default",
           includePartialMessages: true,
-          allowDangerouslySkipPermissions: true,
           canUseTool: async (toolName, input, { signal }) => {
-            // For AskUserQuestion, we need to wait for user response
-            if (toolName === "AskUserQuestion") {
+            // 检测删除操作 - 需要用户确认
+            const isDeletionOperation = checkIfDeletionOperation(toolName, input);
+
+            // 记录所有工具调用（使用 info 级别确保输出）
+            const { log } = await import("../logger.js");
+            log.info(`[Tool] toolName=${toolName}, isDeletion=${isDeletionOperation}`);
+            if (toolName === "Bash") {
+              const cmd = (input as Record<string, unknown>).command;
+              log.info(`[Tool] Bash command: ${cmd}`);
+            }
+            if (toolName === "Write") {
+              const filePath = (input as Record<string, unknown>).path;
+              const content = (input as Record<string, unknown>).content;
+              log.info(`[Tool] Write file=${filePath}, contentLength=${String(content).length}`);
+            }
+
+            // AskUserQuestion 或删除操作都需要用户响应
+            if (toolName === "AskUserQuestion" || isDeletionOperation) {
               const toolUseId = crypto.randomUUID();
 
-              // Send permission request to frontend
+              // 发送权限请求到前端
               sendPermissionRequest(toolUseId, toolName, input);
 
-              // Create a promise that will be resolved when user responds
+              // 创建一个 Promise，等待用户响应
               return new Promise<PermissionResult>((resolve) => {
                 session.pendingPermissions.set(toolUseId, {
                   toolUseId,
@@ -91,7 +146,7 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
                   }
                 });
 
-                // Handle abort
+                // 处理中止
                 signal.addEventListener("abort", () => {
                   session.pendingPermissions.delete(toolUseId);
                   resolve({ behavior: "deny", message: "Session aborted" });
@@ -99,7 +154,7 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
               });
             }
 
-            // Auto-approve other tools
+            // 自动批准其他工具
             return { behavior: "allow", updatedInput: input };
           }
         }
@@ -113,6 +168,25 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
           if (sdkSessionId) {
             session.claudeSessionId = sdkSessionId;
             onSessionUpdate?.({ claudeSessionId: sdkSessionId });
+          }
+        }
+
+        // 拦截工具使用消息 - 检测删除操作
+        if (message.type === "assistant") {
+          const assistantMsg = message as any;
+          if (assistantMsg.message && assistantMsg.message.content) {
+            for (const content of assistantMsg.message.content) {
+              if (content.type === "tool_use" && content.name === "Bash") {
+                const cmd = content.input?.command;
+                if (cmd && checkIfDeletionOperation("Bash", { command: cmd })) {
+                  // 这是一个删除操作，需要用户确认
+                  const { log } = await import("../logger.js");
+                  log.info(`[Deletion Detected] Blocking tool use: ${cmd}`);
+                  // TODO: 在这里拦截，阻止工具执行
+                  // 目前 SDK 已经执行了工具，所以我们无法拦截
+                }
+              }
+            }
           }
         }
 

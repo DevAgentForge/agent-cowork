@@ -2,16 +2,32 @@
     "appId": "com.devagentforge.agentcowork",
     "productName": "Agent Cowork",
     "files": [
-        "dist-electron",
-        "dist-react"
+        "dist-electron/**/*",
+        "dist-react/**/*",
+        "templateIcon.ico",
+        "node_modules/**/*"
     ],
     "extraResources": [
-        "dist-electron/preload.cjs"
+        "dist-electron/preload.cjs",
+        {
+            "from": "templateIcon.ico",
+            "to": "templateIcon.ico"
+        }
     ],
     "asarUnpack": [
-        "node_modules/@anthropic-ai/claude-agent-sdk/**/*"
+        "node_modules/@anthropic-ai/claude-agent-sdk/**/*",
+        "node_modules/better-sqlite3/**/*",
+        "node_modules/os-utils/**/*",
+        "node_modules/winston/**/*",
+        "node_modules/winston-transport/**/*",
+        "node_modules/async/**/*",
+        "node_modules/@colors/colors/**/*",
+        "node_modules/@dabh/diagnostic-tools/**/*",
+        "node_modules/@dabh/unsafe-random/**/*",
+        "node_modules/stack-trace/**/*",
+        "node_modules/util-deprecate/**/*"
     ],
-    "icon": "./claude-color.png",
+    "icon": "./templateIcon.ico",
     "mac": {
         "target": "dmg"
     },
@@ -20,6 +36,8 @@
         "category": "Utility"
     },
     "win": {
+        "icon": "./templateIcon.ico",
+        "signAndEditExecutable": false,
         "target": [
             "portable"
         ]

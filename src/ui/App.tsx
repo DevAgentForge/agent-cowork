@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import { useIPC } from "./hooks/useIPC";
 import { useMessageWindow } from "./hooks/useMessageWindow";
@@ -9,11 +10,39 @@ import { StartSessionModal } from "./components/StartSessionModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { PromptInput, usePromptActions } from "./components/PromptInput";
 import { MessageCard } from "./components/EventCard";
+import { DeletionConfirmDialog } from "./components/DeletionConfirmDialog";
 import MDContent from "./render/markdown";
 
 const SCROLL_THRESHOLD = 50;
 
+/**
+ * 检测权限请求是否是删除操作
+ */
+function isDeletionPermissionRequest(request: { toolName: string; input: unknown } | undefined): boolean {
+  if (!request) return false;
+  if (request.toolName !== "Bash") return false;
+
+  const input = request.input as Record<string, unknown> | null;
+  const command = input?.command;
+  if (typeof command !== "string") return false;
+
+  const deletionPatterns = [
+    /\brm\s/,           // Unix rm 命令
+    /\brmdir\s/,        // Unix rmdir 命令
+    /del\s/,            // Windows del 命令
+    /rmdir\s/,          // Windows rmdir 命令
+    /Delete-Item/,      // PowerShell
+    /\bunlink\s/,       // unlink 系统调用
+    /\btrash\s/,        // trash 命令
+    /shred\s/,          // 安全删除
+    /wipe\s/,           // wipe 工具
+  ];
+
+  return deletionPatterns.some(pattern => pattern.test(command));
+}
+
 function App() {
+  const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
@@ -258,6 +287,14 @@ function App() {
           <span className="text-sm font-medium text-ink-700">{activeSession?.title || "Agent Cowork"}</span>
         </div>
 
+        {/* 删除操作确认弹窗 - z-index 最高，强制用户确认 */}
+        {isDeletionPermissionRequest(permissionRequests[0]) && (
+          <DeletionConfirmDialog
+            request={permissionRequests[0]}
+            onSubmit={(result) => handlePermissionResult(permissionRequests[0].toolUseId, result)}
+          />
+        )}
+
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
@@ -270,7 +307,7 @@ function App() {
               <div className="flex items-center justify-center py-4 mb-4">
                 <div className="flex items-center gap-2 text-xs text-muted">
                   <div className="h-px w-12 bg-ink-900/10" />
-                  <span>Beginning of conversation</span>
+                  <span>{t("app.beginningOfConversation")}</span>
                   <div className="h-px w-12 bg-ink-900/10" />
                 </div>
               </div>
@@ -283,15 +320,16 @@ function App() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span>Loading...</span>
+                  <span>{t("app.loadingMessages")}</span>
                 </div>
               </div>
             )}
 
-            {visibleMessages.length === 0 ? (
+      {/* AskUserQuestion 的 DecisionPanel 在消息流中显示，但删除操作用全局弹窗 */}
+      {!isDeletionPermissionRequest(permissionRequests[0]) && visibleMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="text-lg font-medium text-ink-700">No messages yet</div>
-                <p className="mt-2 text-sm text-muted">Start a conversation with agent cowork</p>
+                <div className="text-lg font-medium text-ink-700">{t("app.noMessagesYet")}</div>
+                <p className="mt-2 text-sm text-muted">{t("app.startConversation")}</p>
               </div>
             ) : (
               visibleMessages.map((item, idx) => (
@@ -344,7 +382,7 @@ function App() {
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 5v14M5 12l7 7 7-7" />
             </svg>
-            <span>New messages</span>
+            <span>{t("app.newMessages")}</span>
           </button>
         )}
       </main>

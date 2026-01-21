@@ -6,7 +6,7 @@ electron.contextBridge.exposeInMainWorld("electron", {
             callback(stats);
         }),
     getStaticData: () => ipcInvoke("getStaticData"),
-    
+
     // Claude Agent IPC APIs
     sendClientEvent: (event: any) => {
         electron.ipcRenderer.send("client-event", event);
@@ -23,22 +23,29 @@ electron.contextBridge.exposeInMainWorld("electron", {
         electron.ipcRenderer.on("server-event", cb);
         return () => electron.ipcRenderer.off("server-event", cb);
     },
-    generateSessionTitle: (userInput: string | null) => 
+    generateSessionTitle: (userInput: string | null) =>
         ipcInvoke("generate-session-title", userInput),
-    getRecentCwds: (limit?: number) => 
+    getRecentCwds: (limit?: number) =>
         ipcInvoke("get-recent-cwds", limit),
-    selectDirectory: () => 
+    selectDirectory: () =>
         ipcInvoke("select-directory"),
-    getApiConfig: () => 
+    getApiConfig: () =>
         ipcInvoke("get-api-config"),
-    saveApiConfig: (config: any) => 
+    saveApiConfig: (config: any) =>
         ipcInvoke("save-api-config", config),
     checkApiConfig: () =>
-        ipcInvoke("check-api-config")
+        ipcInvoke("check-api-config"),
+    testApiConnection: (config: any) =>
+        invoke("test-api-connection", config)
 } satisfies Window['electron'])
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(key: Key, ...args: any[]): Promise<EventPayloadMapping[Key]> {
     return electron.ipcRenderer.invoke(key, ...args);
+}
+
+// 通用的 invoke 函数，用于不在 EventPayloadMapping 中的 API
+function invoke(channel: string, ...args: any[]): Promise<any> {
+    return electron.ipcRenderer.invoke(channel, ...args);
 }
 
 function ipcOn<Key extends keyof EventPayloadMapping>(key: Key, callback: (payload: EventPayloadMapping[Key]) => void) {

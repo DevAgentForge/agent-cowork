@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { ClientEvent } from "../types";
 import { useAppStore } from "../store/useAppStore";
 
@@ -14,6 +15,7 @@ interface PromptInputProps {
 }
 
 export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
+  const { t } = useTranslation();
   const prompt = useAppStore((state) => state.prompt);
   const cwd = useAppStore((state) => state.cwd);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
@@ -36,7 +38,7 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
       } catch (error) {
         console.error(error);
         setPendingStart(false);
-        setGlobalError("Failed to get session title.");
+        setGlobalError(t("errors.failedToGetSessionTitle"));
         return;
       }
       sendEvent({
@@ -45,13 +47,13 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
       });
     } else {
       if (activeSession?.status === "running") {
-        setGlobalError("Session is still running. Please wait for it to finish.");
+        setGlobalError(t("errors.sessionStillRunning"));
         return;
       }
       sendEvent({ type: "session.continue", payload: { sessionId: activeSessionId, prompt } });
     }
     setPrompt("");
-  }, [activeSession, activeSessionId, cwd, prompt, sendEvent, setGlobalError, setPendingStart, setPrompt]);
+  }, [activeSession, activeSessionId, cwd, prompt, sendEvent, setGlobalError, setPendingStart, setPrompt, t]);
 
   const handleStop = useCallback(() => {
     if (!activeSessionId) return;
@@ -60,16 +62,17 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
 
   const handleStartFromModal = useCallback(() => {
     if (!cwd.trim()) {
-      setGlobalError("Working Directory is required to start a session.");
+      setGlobalError(t("errors.workingDirectoryRequired"));
       return;
     }
     handleSend();
-  }, [cwd, handleSend, setGlobalError]);
+  }, [cwd, handleSend, setGlobalError, t]);
 
   return { prompt, setPrompt, isRunning, handleSend, handleStop, handleStartFromModal };
 }
 
 export function PromptInput({ sendEvent, onSendMessage, disabled = false }: PromptInputProps) {
+  const { t } = useTranslation();
   const { prompt, setPrompt, isRunning, handleSend, handleStop } = usePromptActions(sendEvent);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -124,7 +127,7 @@ export function PromptInput({ sendEvent, onSendMessage, disabled = false }: Prom
         <textarea
           rows={1}
           className="flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-800 placeholder:text-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          placeholder={disabled ? "Create/select a task to start..." : "Describe what you want agent to handle..."}
+          placeholder={disabled ? t("promptInput.placeholderDisabled") : t("promptInput.placeholder")}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -135,7 +138,7 @@ export function PromptInput({ sendEvent, onSendMessage, disabled = false }: Prom
         <button
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isRunning ? "bg-error text-white hover:bg-error/90" : "bg-accent text-white hover:bg-accent-hover"}`}
           onClick={handleButtonClick}
-          aria-label={isRunning ? "Stop session" : "Send prompt"}
+          aria-label={isRunning ? t("promptInput.stopSession") : t("promptInput.sendPrompt")}
           disabled={disabled && !isRunning}
         >
           {isRunning ? (

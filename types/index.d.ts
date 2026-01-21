@@ -21,6 +21,7 @@ type EventPayloadMapping = {
     "get-api-config": { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null;
     "save-api-config": { success: boolean; error?: string };
     "check-api-config": { hasConfig: boolean; config: { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null };
+    "test-api-connection": { success: boolean; message: string; details?: string; responseTime?: number };
 }
 
 interface Window {
@@ -36,5 +37,6 @@ interface Window {
         getApiConfig: () => Promise<{ apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null>;
         saveApiConfig: (config: { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" }) => Promise<{ success: boolean; error?: string }>;
         checkApiConfig: () => Promise<{ hasConfig: boolean; config: { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null }>;
+        testApiConnection: (config: { apiKey: string; baseURL: string; model: string }) => Promise<{ success: boolean; message: string; details?: string; responseTime?: number }>;
     }
 }

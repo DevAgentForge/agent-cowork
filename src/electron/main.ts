@@ -7,6 +7,8 @@ import { handleClientEvent, sessions, cleanupAllSessions } from "./ipc-handlers.
 import { generateSessionTitle } from "./libs/util.js";
 import { saveApiConfig } from "./libs/config-store.js";
 import { getCurrentApiConfig } from "./libs/claude-settings.js";
+import { testApiConnection } from "./api-tester.js";
+import { log, logStartup, setupErrorHandling } from "./logger.js";
 import type { ClientEvent } from "./types.js";
 import "./libs/claude-settings.js";
 
@@ -43,11 +45,24 @@ function handleSignal(): void {
 
 // Initialize everything when app is ready
 app.on("ready", () => {
+    // 设置错误处理（必须在其他操作之前）
+    setupErrorHandling();
+
+    // 记录应用启动
+    logStartup();
+
     Menu.setApplicationMenu(null);
     // Setup event handlers
-    app.on("before-quit", cleanup);
-    app.on("will-quit", cleanup);
+    app.on("before-quit", () => {
+        log.info('Application quitting (before-quit event)');
+        cleanup();
+    });
+    app.on("will-quit", () => {
+        log.info('Application quitting (will-quit event)');
+        cleanup();
+    });
     app.on("window-all-closed", () => {
+        log.info('All windows closed');
         cleanup();
         app.quit();
     });
@@ -129,10 +144,15 @@ app.on("ready", () => {
             saveApiConfig(config);
             return { success: true };
         } catch (error) {
-            return { 
-                success: false, 
-                error: error instanceof Error ? error.message : String(error) 
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : String(error)
             };
         }
+    });
+
+    // Handle API connection testing
+    ipcMainHandle("test-api-connection", async (_: any, config: any) => {
+        return await testApiConnection(config);
     });
 })

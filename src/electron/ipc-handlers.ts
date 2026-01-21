@@ -4,6 +4,7 @@ import { runClaude, type RunnerHandle } from "./libs/runner.js";
 import { SessionStore } from "./libs/session-store.js";
 import { app } from "electron";
 import { join } from "path";
+import { log } from "./logger.js";
 
 let sessions: SessionStore;
 const runnerHandles = new Map<string, RunnerHandle>();
@@ -11,6 +12,7 @@ const runnerHandles = new Map<string, RunnerHandle>();
 function initializeSessions() {
   if (!sessions) {
     const DB_PATH = join(app.getPath("userData"), "sessions.db");
+    log.info(`Initializing session store at: ${DB_PATH}`);
     sessions = new SessionStore(DB_PATH);
   }
   return sessions;
@@ -88,12 +90,24 @@ export function handleClientEvent(event: ClientEvent) {
   }
 
   if (event.type === "session.start") {
+    const cwd = event.payload.cwd;
+    log.session('unknown', 'Starting new session', { cwd, title: event.payload.title });
+    const startTime = Date.now();
+
     const session = sessions.createSession({
-      cwd: event.payload.cwd,
+      cwd,
       title: event.payload.title,
       allowedTools: event.payload.allowedTools,
       prompt: event.payload.prompt
     });
+
+    // 使用会话日志记录到任务文件夹（如果有 cwd）
+    if (cwd) {
+      log.sessionCwd(session.id, cwd, 'Session created', { id: session.id, cwd, title: session.title });
+      log.sessionCwd(session.id, cwd, 'Session starting', { prompt: event.payload.prompt });
+    } else {
+      log.session(session.id, 'Session created (no cwd)', { id: session.id, title: session.title });
+    }
 
     sessions.updateSession(session.id, {
       status: "running",
@@ -121,8 +135,11 @@ export function handleClientEvent(event: ClientEvent) {
       .then((handle) => {
         runnerHandles.set(session.id, handle);
         sessions.setAbortController(session.id, undefined);
+        const duration = Date.now() - startTime;
+        log.performance(`Session ${session.id} start`, duration);
       })
       .catch((error) => {
+        log.error(`Session ${session.id} failed to start`, error);
         sessions.updateSession(session.id, { status: "error" });
         emit({
           type: "session.status",
@@ -150,11 +167,52 @@ export function handleClientEvent(event: ClientEvent) {
       return;
     }
 
+    // If session has no claudeSessionId, treat this as the first prompt
+    // (The session object exists but hasn't been initialized with Claude yet)
     if (!session.claudeSessionId) {
+      log.session(session.id, 'Starting session (no claudeSessionId)', { title: session.title });
+      const startTime = Date.now();
+
+      sessions.updateSession(session.id, { status: "running", lastPrompt: event.payload.prompt });
       emit({
-        type: "runner.error",
-        payload: { sessionId: session.id, message: "Session has no resume id yet." }
+        type: "session.status",
+        payload: { sessionId: session.id, status: "running", title: session.title, cwd: session.cwd }
       });
+
+      emit({
+        type: "stream.user_prompt",
+        payload: { sessionId: session.id, prompt: event.payload.prompt }
+      });
+
+      runClaude({
+        prompt: event.payload.prompt,
+        session,
+        resumeSessionId: session.claudeSessionId,
+        onEvent: emit,
+        onSessionUpdate: (updates) => {
+          sessions.updateSession(session.id, updates);
+        }
+      })
+        .then((handle) => {
+          runnerHandles.set(session.id, handle);
+          const duration = Date.now() - startTime;
+          log.performance(`Session ${session.id} start`, duration);
+        })
+        .catch((error) => {
+          log.error(`Session ${session.id} failed to start`, error);
+          sessions.updateSession(session.id, { status: "error" });
+          emit({
+            type: "session.status",
+            payload: {
+              sessionId: session.id,
+              status: "error",
+              title: session.title,
+              cwd: session.cwd,
+              error: String(error)
+            }
+          });
+        });
+
       return;
     }
 
@@ -200,12 +258,18 @@ export function handleClientEvent(event: ClientEvent) {
 
   if (event.type === "session.stop") {
     const session = sessions.getSession(event.payload.sessionId);
-    if (!session) return;
+    if (!session) {
+      log.warn(`Attempted to stop non-existent session: ${event.payload.sessionId}`);
+      return;
+    }
+
+    log.session(session.id, 'Stopping session');
 
     const handle = runnerHandles.get(session.id);
     if (handle) {
       handle.abort();
       runnerHandles.delete(session.id);
+      log.session(session.id, 'Session aborted');
     }
 
     sessions.updateSession(session.id, { status: "idle" });
@@ -218,19 +282,32 @@ export function handleClientEvent(event: ClientEvent) {
 
   if (event.type === "session.delete") {
     const sessionId = event.payload.sessionId;
-    const handle = runnerHandles.get(sessionId);
-    if (handle) {
-      handle.abort();
-      runnerHandles.delete(sessionId);
-    }
+    log.session(sessionId, 'Deleting session');
 
-    // Always try to delete and emit deleted event
-    // Don't emit error if session doesn't exist - it may have already been deleted
-    sessions.deleteSession(sessionId);
-    emit({
-      type: "session.deleted",
-      payload: { sessionId }
-    });
+    try {
+      const handle = runnerHandles.get(sessionId);
+      if (handle) {
+        handle.abort();
+        runnerHandles.delete(sessionId);
+      }
+
+      sessions.deleteSession(sessionId);
+      emit({
+        type: "session.deleted",
+        payload: { sessionId }
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log.error(`Failed to delete session ${sessionId}`, error);
+
+      emit({
+        type: "runner.error",
+        payload: {
+          sessionId,
+          message: `Failed to delete session: ${errorMessage}`
+        }
+      });
+    }
     return;
   }
 
@@ -247,12 +324,18 @@ export function handleClientEvent(event: ClientEvent) {
 }
 
 export function cleanupAllSessions(): void {
-  for (const [, handle] of runnerHandles) {
-    handle.abort();
+  const count = runnerHandles.size;
+  if (count > 0) {
+    log.info(`Cleaning up ${count} active session(s)`);
+    for (const [sessionId, handle] of runnerHandles) {
+      log.session(sessionId, 'Aborting during cleanup');
+      handle.abort();
+    }
   }
   runnerHandles.clear();
   if (sessions) {
     sessions.close();
+    log.info('Session store closed');
   }
 }
 
