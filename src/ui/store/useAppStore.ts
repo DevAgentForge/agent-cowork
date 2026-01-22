@@ -148,10 +148,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         const { sessionId, messages, status } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          // Don't replace messages if session is running - merge instead
+          // This prevents streaming messages from being lost
+          const mergedMessages = existing.status === "running" && existing.messages.length > messages.length
+            ? existing.messages  // Keep streaming messages if more than history
+            : messages;
           return {
             sessions: {
               ...state.sessions,
-              [sessionId]: { ...existing, status, messages, hydrated: true }
+              [sessionId]: { ...existing, status, messages: mergedMessages, hydrated: true }
             }
           };
         });
@@ -162,6 +167,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         const { sessionId, status, title, cwd } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          // Mark as hydrated if this is a new session that's starting to run
+          // This prevents history request from clearing streaming messages
+          const isNewSession = !existing.title && title;
           return {
             sessions: {
               ...state.sessions,
@@ -170,7 +178,9 @@ export const useAppStore = create<AppState>((set, get) => ({
                 status,
                 title: title ?? existing.title,
                 cwd: cwd ?? existing.cwd,
-                updatedAt: Date.now()
+                updatedAt: Date.now(),
+                // Mark as hydrated for new sessions to prevent history overwrite
+                hydrated: isNewSession ? true : existing.hydrated
               }
             }
           };
@@ -214,6 +224,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         const { sessionId, message } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          // Deduplicate messages by checking if last message is identical
+          // This handles duplicate events from React StrictMode's double connections
+          const lastMessage = existing.messages[existing.messages.length - 1];
+          if (lastMessage && JSON.stringify(lastMessage) === JSON.stringify(message)) {
+            return {}; // Skip duplicate
+          }
           return {
             sessions: {
               ...state.sessions,
@@ -228,12 +244,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         const { sessionId, prompt } = event.payload;
         set((state) => {
           const existing = state.sessions[sessionId] ?? createSession(sessionId);
+          const newMessage = { type: "user_prompt" as const, prompt };
+          // Deduplicate user prompts too
+          const lastMessage = existing.messages[existing.messages.length - 1];
+          if (lastMessage && JSON.stringify(lastMessage) === JSON.stringify(newMessage)) {
+            return {}; // Skip duplicate
+          }
           return {
             sessions: {
               ...state.sessions,
               [sessionId]: {
                 ...existing,
-                messages: [...existing.messages, { type: "user_prompt", prompt }]
+                messages: [...existing.messages, newMessage]
               }
             }
           };

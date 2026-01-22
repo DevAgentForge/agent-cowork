@@ -21,13 +21,16 @@ type EventPayloadMapping = {
     "get-api-config": { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null;
     "save-api-config": { success: boolean; error?: string };
     "check-api-config": { hasConfig: boolean; config: { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null };
+    "get-auth-token": string | null;
 }
 
 interface Window {
     electron: {
         subscribeStatistics: (callback: (statistics: Statistics) => void) => UnsubscribeFunction;
         getStaticData: () => Promise<StaticData>;
-        // Claude Agent IPC APIs
+        // Authentication token for WebSocket connection
+        getAuthToken: () => Promise<string | null>;
+        // Claude Agent IPC APIs (legacy - kept for compatibility)
         sendClientEvent: (event: any) => void;
         onServerEvent: (callback: (event: any) => void) => UnsubscribeFunction;
         generateSessionTitle: (userInput: string | null) => Promise<string>;

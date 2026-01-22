@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
-import { useIPC } from "./hooks/useIPC";
+import { useWebSocket } from "./hooks/useWebSocket";
 import { useMessageWindow } from "./hooks/useMessageWindow";
 import { useAppStore } from "./store/useAppStore";
 import type { ServerEvent } from "./types";
@@ -93,7 +93,7 @@ function App() {
     handlePartialMessages(event);
   }, [handleServerEvent, handlePartialMessages]);
 
-  const { connected, sendEvent } = useIPC(onEvent);
+  const { connected, sendEvent } = useWebSocket(onEvent);
   const { handleStartFromModal } = usePromptActions(sendEvent);
 
   const activeSession = activeSessionId ? sessions[activeSessionId] : undefined;

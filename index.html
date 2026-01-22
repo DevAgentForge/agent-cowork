@@ -8,7 +8,8 @@
     <title>Agent Cowork</title>
     <meta http-equiv="Content-Security-Policy" content="default-src 'self';
     style-src 'self' 'unsafe-inline';
-    script-src 'self';">
+    script-src 'self' 'unsafe-inline' 'unsafe-eval';
+    connect-src 'self' ws://localhost:8000 ws://127.0.0.1:8000 http://localhost:* http://127.0.0.1:*;">
 </head>
 
 <body>

@@ -6,8 +6,11 @@ electron.contextBridge.exposeInMainWorld("electron", {
             callback(stats);
         }),
     getStaticData: () => ipcInvoke("getStaticData"),
-    
-    // Claude Agent IPC APIs
+
+    // Authentication token for WebSocket connection
+    getAuthToken: () => ipcInvoke("get-auth-token"),
+
+    // Legacy IPC APIs (kept for compatibility during migration)
     sendClientEvent: (event: any) => {
         electron.ipcRenderer.send("client-event", event);
     },
@@ -23,15 +26,15 @@ electron.contextBridge.exposeInMainWorld("electron", {
         electron.ipcRenderer.on("server-event", cb);
         return () => electron.ipcRenderer.off("server-event", cb);
     },
-    generateSessionTitle: (userInput: string | null) => 
+    generateSessionTitle: (userInput: string | null) =>
         ipcInvoke("generate-session-title", userInput),
-    getRecentCwds: (limit?: number) => 
+    getRecentCwds: (limit?: number) =>
         ipcInvoke("get-recent-cwds", limit),
-    selectDirectory: () => 
+    selectDirectory: () =>
         ipcInvoke("select-directory"),
-    getApiConfig: () => 
+    getApiConfig: () =>
         ipcInvoke("get-api-config"),
-    saveApiConfig: (config: any) => 
+    saveApiConfig: (config: any) =>
         ipcInvoke("save-api-config", config),
     checkApiConfig: () =>
         ipcInvoke("check-api-config")
