@@ -8,7 +8,8 @@ import { Sidebar } from "./components/Sidebar";
 import { StartSessionModal } from "./components/StartSessionModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { PromptInput, usePromptActions } from "./components/PromptInput";
-import { MessageCard } from "./components/EventCard";
+import { GroupedMessageSection } from "./components/GroupedMessageSection";
+import { filterSessionMessages, groupConsecutiveMessages } from "./utils/groupMessages";
 import MDContent from "./render/markdown";
 
 const SCROLL_THRESHOLD = 50;
@@ -298,7 +299,8 @@ function App() {
             )}
 
             {(() => {
-              const filteredMessages = visibleMessages.filter(item => item.message.type !== "stream_event");
+              // Filter out system, result, and stream_event messages
+              const filteredMessages = filterSessionMessages(visibleMessages);
 
               if (filteredMessages.length === 0) {
                 return (
@@ -309,14 +311,18 @@ function App() {
                 );
               }
 
-              return filteredMessages.map((item, idx, arr) => (
-                <MessageCard
-                  key={`${activeSessionId}-msg-${item.originalIndex}`}
-                  message={item.message}
-                  isLast={idx === arr.length - 1}
+              // Group consecutive messages by role
+              const messageGroups = groupConsecutiveMessages(filteredMessages);
+
+              return messageGroups.map((group, groupIdx) => (
+                <GroupedMessageSection
+                  key={`${activeSessionId}-group-${groupIdx}`}
+                  group={group}
+                  isLastGroup={groupIdx === messageGroups.length - 1}
                   isRunning={isRunning}
                   permissionRequest={permissionRequests[0]}
                   onPermissionResult={handlePermissionResult}
+                  sessionId={activeSessionId}
                 />
               ));
             })()}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useAppStore } from "../store/useAppStore";
+import { SessionInfoModal } from "./SessionInfoModal";
 
 interface SidebarProps {
   connected: boolean;
@@ -17,6 +18,7 @@ export function Sidebar({
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const setActiveSessionId = useAppStore((state) => state.setActiveSessionId);
   const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
+  const [infoSessionId, setInfoSessionId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -139,6 +141,13 @@ export function Sidebar({
                       </svg>
                       Resume in Claude Code
                     </DropdownMenu.Item>
+                    <DropdownMenu.Item className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink-700 outline-none hover:bg-ink-900/5" onSelect={() => setInfoSessionId(session.id)}>
+                      <svg viewBox="0 0 24 24" className="h-4 w-4 text-ink-500" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
+                      </svg>
+                      Session Info
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
@@ -173,6 +182,13 @@ export function Sidebar({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <SessionInfoModal
+        open={!!infoSessionId}
+        onOpenChange={(open) => !open && setInfoSessionId(null)}
+        metadata={infoSessionId ? sessions[infoSessionId]?.metadata : undefined}
+        sessionTitle={infoSessionId ? sessions[infoSessionId]?.title : undefined}
+      />
     </aside>
   );
 }

@@ -7,6 +7,18 @@ export type PermissionRequest = {
   input: unknown;
 };
 
+export type SessionMetadata = {
+  sessionId?: string;
+  model?: string;
+  permissionMode?: string;
+  workingDirectory?: string;
+  durationMs?: number;
+  durationApiMs?: number;
+  totalCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+};
+
 export type SessionView = {
   id: string;
   title: string;
@@ -18,6 +30,7 @@ export type SessionView = {
   createdAt?: number;
   updatedAt?: number;
   hydrated: boolean;
+  metadata?: SessionMetadata;
 };
 
 interface AppState {
@@ -256,10 +269,42 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (newMessages.length % 10 === 0) {
             console.log(`[Store] Messages: ${newMessages.length}`);
           }
+
+          // Extract metadata from system init messages
+          let updatedMetadata = existing.metadata;
+          const msgAny = message as any;
+          if (msgAny.type === "system" && msgAny.subtype === "init") {
+            updatedMetadata = {
+              ...updatedMetadata,
+              sessionId: msgAny.session_id,
+              model: msgAny.model,
+              permissionMode: msgAny.permissionMode,
+              workingDirectory: msgAny.cwd,
+            };
+          }
+
+          // Accumulate usage from result messages (each query/response cycle sends one)
+          if (msgAny.type === "result") {
+            const prevDuration = updatedMetadata?.durationMs ?? 0;
+            const prevApiDuration = updatedMetadata?.durationApiMs ?? 0;
+            const prevCost = updatedMetadata?.totalCostUsd ?? 0;
+            const prevInputTokens = updatedMetadata?.inputTokens ?? 0;
+            const prevOutputTokens = updatedMetadata?.outputTokens ?? 0;
+
+            updatedMetadata = {
+              ...updatedMetadata,
+              durationMs: prevDuration + (msgAny.duration_ms ?? 0),
+              durationApiMs: prevApiDuration + (msgAny.duration_api_ms ?? 0),
+              totalCostUsd: prevCost + (msgAny.total_cost_usd ?? 0),
+              inputTokens: prevInputTokens + (msgAny.usage?.input_tokens ?? 0),
+              outputTokens: prevOutputTokens + (msgAny.usage?.output_tokens ?? 0),
+            };
+          }
+
           return {
             sessions: {
               ...state.sessions,
-              [sessionId]: { ...existing, messages: newMessages }
+              [sessionId]: { ...existing, messages: newMessages, metadata: updatedMetadata }
             }
           };
         });

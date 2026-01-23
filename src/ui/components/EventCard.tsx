@@ -157,12 +157,14 @@ const ToolResult = ({ messageContent }: { messageContent: ToolResultContent }) =
   );
 };
 
-const AssistantBlockCard = ({ title, text, showIndicator = false }: { title: string; text: string; showIndicator?: boolean }) => (
+const AssistantBlockCard = ({ title, text, showIndicator = false, showHeader = true }: { title: string; text: string; showIndicator?: boolean; showHeader?: boolean }) => (
   <div className="flex flex-col mt-4">
-    <div className="header text-accent flex items-center gap-2">
-      <StatusDot variant="success" isActive={showIndicator} isVisible={showIndicator} />
-      {title}
-    </div>
+    {showHeader && (
+      <div className="header text-accent flex items-center gap-2">
+        <StatusDot variant="success" isActive={showIndicator} isVisible={showIndicator} />
+        {title}
+      </div>
+    )}
     <MDContent text={text} />
   </div>
 );
@@ -273,12 +275,14 @@ const SystemInfoCard = ({ message, showIndicator = false }: { message: SDKMessag
   );
 };
 
-const UserMessageCard = ({ message, showIndicator = false }: { message: { type: "user_prompt"; prompt: string }; showIndicator?: boolean }) => (
+const UserMessageCard = ({ message, showIndicator = false, showHeader = true }: { message: { type: "user_prompt"; prompt: string }; showIndicator?: boolean; showHeader?: boolean }) => (
   <div className="flex flex-col mt-4">
-    <div className="header text-accent flex items-center gap-2">
-      <StatusDot variant="success" isActive={showIndicator} isVisible={showIndicator} />
-      User
-    </div>
+    {showHeader && (
+      <div className="header text-accent flex items-center gap-2">
+        <StatusDot variant="success" isActive={showIndicator} isVisible={showIndicator} />
+        User
+      </div>
+    )}
     <MDContent text={message.prompt} />
   </div>
 );
@@ -288,13 +292,15 @@ export function MessageCard({
   isLast = false,
   isRunning = false,
   permissionRequest,
-  onPermissionResult
+  onPermissionResult,
+  showHeader = true
 }: {
   message: StreamMessage;
   isLast?: boolean;
   isRunning?: boolean;
   permissionRequest?: PermissionRequest;
   onPermissionResult?: (toolUseId: string, result: PermissionResult) => void;
+  showHeader?: boolean;
 }) {
   const showIndicator = isLast && isRunning;
 
@@ -307,7 +313,7 @@ export function MessageCard({
   }
 
   if (message.type === "user_prompt") {
-    return <UserMessageCard message={message} showIndicator={showIndicator} />;
+    return <UserMessageCard message={message} showIndicator={showIndicator} showHeader={showHeader} />;
   }
 
   const sdkMessage = message as SDKMessage;
@@ -336,13 +342,17 @@ export function MessageCard({
       <>
         {contents.map((content: MessageContent, idx: number) => {
           const isLastContent = idx === contents.length - 1;
+          const isFirstContent = idx === 0;
+          // Only show header for first content block if showHeader is true
+          const shouldShowBlockHeader = showHeader && isFirstContent;
           // Handle both { type: "thinking", thinking: "..." } and { thinking: "..." } formats
           if (content.type === "thinking" || ("thinking" in content && !content.type)) {
-            return <AssistantBlockCard key={idx} title="Thinking" text={(content as any).thinking} showIndicator={isLastContent && showIndicator} />;
+            // Always show "Thinking" header to distinguish from regular text
+            return <AssistantBlockCard key={idx} title="Thinking" text={(content as any).thinking} showIndicator={isLastContent && showIndicator} showHeader={true} />;
           }
           // Handle both { type: "text", text: "..." } and { text: "..." } formats
           if (content.type === "text" || ("text" in content && !content.type)) {
-            return <AssistantBlockCard key={idx} title="Assistant" text={(content as any).text} showIndicator={isLastContent && showIndicator} />;
+            return <AssistantBlockCard key={idx} title="Assistant" text={(content as any).text} showIndicator={isLastContent && showIndicator} showHeader={shouldShowBlockHeader} />;
           }
           if (content.type === "tool_use") {
             if (content.name === "AskUserQuestion") {
