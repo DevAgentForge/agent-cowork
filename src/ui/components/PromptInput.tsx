@@ -10,6 +10,7 @@ const MAX_HEIGHT = MAX_ROWS * LINE_HEIGHT;
 interface PromptInputProps {
   sendEvent: (event: ClientEvent) => void;
   onSendMessage?: () => void;
+  disabled?: boolean;
 }
 
 export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
@@ -68,11 +69,12 @@ export function usePromptActions(sendEvent: (event: ClientEvent) => void) {
   return { prompt, setPrompt, isRunning, handleSend, handleStop, handleStartFromModal };
 }
 
-export function PromptInput({ sendEvent, onSendMessage }: PromptInputProps) {
+export function PromptInput({ sendEvent, onSendMessage, disabled = false }: PromptInputProps) {
   const { prompt, setPrompt, isRunning, handleSend, handleStop } = usePromptActions(sendEvent);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (disabled && !isRunning) return;
     if (e.key !== "Enter" || e.shiftKey) return;
     e.preventDefault();
     if (isRunning) { handleStop(); return; }
@@ -81,6 +83,7 @@ export function PromptInput({ sendEvent, onSendMessage }: PromptInputProps) {
   };
 
   const handleButtonClick = () => {
+    if (disabled && !isRunning) return;
     if (isRunning) {
       handleStop();
     } else {
@@ -120,18 +123,20 @@ export function PromptInput({ sendEvent, onSendMessage }: PromptInputProps) {
       <div className="mx-auto flex w-full max-w-full items-end gap-3 rounded-2xl border border-ink-900/10 bg-surface px-4 py-3 shadow-card lg:max-w-3xl">
         <textarea
           rows={1}
-          className="flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-800 placeholder:text-muted focus:outline-none"
-          placeholder="Describe what you want agent to handle..."
+          className="flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-800 placeholder:text-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          placeholder={disabled ? "Create/select a task to start..." : "Describe what you want agent to handle..."}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           ref={promptRef}
+          disabled={disabled && !isRunning}
         />
         <button
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${isRunning ? "bg-error text-white hover:bg-error/90" : "bg-accent text-white hover:bg-accent-hover"}`}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${isRunning ? "bg-error text-white hover:bg-error/90" : "bg-accent text-white hover:bg-accent-hover"}`}
           onClick={handleButtonClick}
           aria-label={isRunning ? "Stop session" : "Send prompt"}
+          disabled={disabled && !isRunning}
         >
           {isRunning ? (
             <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>

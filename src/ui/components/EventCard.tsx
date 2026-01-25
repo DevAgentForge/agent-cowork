@@ -259,7 +259,7 @@ const SystemInfoCard = ({ message, showIndicator = false }: { message: SDKMessag
   );
   
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 mt-2">
       <div className="header text-accent flex items-center gap-2">
         <StatusDot variant="success" isActive={showIndicator} isVisible={showIndicator} />
         System Init

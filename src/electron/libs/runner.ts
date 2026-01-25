@@ -1,7 +1,9 @@
 import { query, type SDKMessage, type PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import type { ServerEvent } from "../types.js";
 import type { Session } from "./session-store.js";
-import { claudeCodePath, enhancedEnv} from "./util.js";
+
+import { getCurrentApiConfig, buildEnvForConfig, getClaudeCodePath} from "./claude-settings.js";
+import { getEnhancedEnv } from "./util.js";
 
 
 export type RunnerOptions = {
@@ -40,14 +42,32 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
   // Start the query in the background
   (async () => {
     try {
+      // 获取当前配置
+      const config = getCurrentApiConfig();
+      
+      if (!config) {
+        onEvent({
+          type: "session.status",
+          payload: { sessionId: session.id, status: "error", title: session.title, cwd: session.cwd, error: "API configuration not found. Please configure API settings." }
+        });
+        return;
+      }
+      
+      // 使用 Anthropic SDK
+      const env = buildEnvForConfig(config);
+      const mergedEnv = {
+        ...getEnhancedEnv(),
+        ...env
+      };
+      
       const q = query({
         prompt,
         options: {
           cwd: session.cwd ?? DEFAULT_CWD,
           resume: resumeSessionId,
           abortController,
-          env: enhancedEnv,
-          pathToClaudeCodeExecutable: claudeCodePath,
+          env: mergedEnv,
+          pathToClaudeCodeExecutable: getClaudeCodePath(),
           permissionMode: "bypassPermissions",
           includePartialMessages: true,
           allowDangerouslySkipPermissions: true,

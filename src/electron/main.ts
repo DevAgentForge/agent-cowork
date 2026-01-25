@@ -1,14 +1,17 @@
-import { app, BrowserWindow, ipcMain, dialog, globalShortcut } from "electron"
+import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu } from "electron"
 import { execSync } from "child_process";
 import { ipcMainHandle, isDev, DEV_PORT } from "./util.js";
 import { getPreloadPath, getUIPath, getIconPath } from "./pathResolver.js";
 import { getStaticData, pollResources, stopPolling } from "./test.js";
 import { handleClientEvent, sessions, cleanupAllSessions } from "./ipc-handlers.js";
 import { generateSessionTitle } from "./libs/util.js";
+import { saveApiConfig } from "./libs/config-store.js";
+import { getCurrentApiConfig } from "./libs/claude-settings.js";
 import type { ClientEvent } from "./types.js";
 import "./libs/claude-settings.js";
 
 let cleanupComplete = false;
+let mainWindow: BrowserWindow | null = null;
 
 function killViteDevServer(): void {
     if (!isDev()) return;
@@ -33,24 +36,28 @@ function cleanup(): void {
     killViteDevServer();
 }
 
-app.on("before-quit", cleanup);
-app.on("will-quit", cleanup);
-app.on("window-all-closed", () => {
-    cleanup();
-    app.quit();
-});
-
 function handleSignal(): void {
     cleanup();
     app.quit();
 }
 
-process.on("SIGTERM", handleSignal);
-process.on("SIGINT", handleSignal);
-process.on("SIGHUP", handleSignal);
-
+// Initialize everything when app is ready
 app.on("ready", () => {
-    const mainWindow = new BrowserWindow({
+    Menu.setApplicationMenu(null);
+    // Setup event handlers
+    app.on("before-quit", cleanup);
+    app.on("will-quit", cleanup);
+    app.on("window-all-closed", () => {
+        cleanup();
+        app.quit();
+    });
+
+    process.on("SIGTERM", handleSignal);
+    process.on("SIGINT", handleSignal);
+    process.on("SIGHUP", handleSignal);
+
+    // Create main window
+    mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         minWidth: 900,
@@ -79,7 +86,7 @@ app.on("ready", () => {
     });
 
     // Handle client events
-    ipcMain.on("client-event", (_, event: ClientEvent) => {
+    ipcMain.on("client-event", (_: any, event: ClientEvent) => {
         handleClientEvent(event);
     });
 
@@ -96,14 +103,36 @@ app.on("ready", () => {
 
     // Handle directory selection
     ipcMainHandle("select-directory", async () => {
-        const result = await dialog.showOpenDialog(mainWindow, {
+        const result = await dialog.showOpenDialog(mainWindow!, {
             properties: ['openDirectory']
         });
-        
+
         if (result.canceled) {
             return null;
         }
-        
+
         return result.filePaths[0];
+    });
+
+    // Handle API config
+    ipcMainHandle("get-api-config", () => {
+        return getCurrentApiConfig();
+    });
+
+    ipcMainHandle("check-api-config", () => {
+        const config = getCurrentApiConfig();
+        return { hasConfig: config !== null, config };
+    });
+
+    ipcMainHandle("save-api-config", (_: any, config: any) => {
+        try {
+            saveApiConfig(config);
+            return { success: true };
+        } catch (error) {
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error) 
+            };
+        }
     });
 })

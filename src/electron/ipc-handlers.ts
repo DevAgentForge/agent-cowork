@@ -5,9 +5,16 @@ import { SessionStore } from "./libs/session-store.js";
 import { app } from "electron";
 import { join } from "path";
 
-const DB_PATH = join(app.getPath("userData"), "sessions.db");
-const sessions = new SessionStore(DB_PATH);
+let sessions: SessionStore;
 const runnerHandles = new Map<string, RunnerHandle>();
+
+function initializeSessions() {
+  if (!sessions) {
+    const DB_PATH = join(app.getPath("userData"), "sessions.db");
+    sessions = new SessionStore(DB_PATH);
+  }
+  return sessions;
+}
 
 function broadcast(event: ServerEvent) {
   const payload = JSON.stringify(event);
@@ -17,7 +24,24 @@ function broadcast(event: ServerEvent) {
   }
 }
 
+function hasLiveSession(sessionId: string): boolean {
+  if (!sessions) return false;
+  return Boolean(sessions.getSession(sessionId));
+}
+
 function emit(event: ServerEvent) {
+  // If a session was deleted, drop late events that would resurrect it in the UI.
+  // (Session history lookups are DB-backed, so these late events commonly lead to "Unknown session".)
+  if (
+    (event.type === "session.status" ||
+      event.type === "stream.message" ||
+      event.type === "stream.user_prompt" ||
+      event.type === "permission.request") &&
+    !hasLiveSession(event.payload.sessionId)
+  ) {
+    return;
+  }
+
   if (event.type === "session.status") {
     sessions.updateSession(event.payload.sessionId, { status: event.payload.status });
   }
@@ -34,6 +58,9 @@ function emit(event: ServerEvent) {
 }
 
 export function handleClientEvent(event: ClientEvent) {
+  // Initialize sessions on first event
+  const sessions = initializeSessions();
+
   if (event.type === "session.list") {
     emit({
       type: "session.list",
@@ -45,10 +72,8 @@ export function handleClientEvent(event: ClientEvent) {
   if (event.type === "session.history") {
     const history = sessions.getSessionHistory(event.payload.sessionId);
     if (!history) {
-      emit({
-        type: "runner.error",
-        payload: { message: "Unknown session" }
-      });
+      // Session may have been deleted (or deleted concurrently). Treat as a sync event rather than an error toast.
+      emit({ type: "session.deleted", payload: { sessionId: event.payload.sessionId } });
       return;
     }
     emit({
@@ -117,9 +142,10 @@ export function handleClientEvent(event: ClientEvent) {
   if (event.type === "session.continue") {
     const session = sessions.getSession(event.payload.sessionId);
     if (!session) {
+      emit({ type: "session.deleted", payload: { sessionId: event.payload.sessionId } });
       emit({
         type: "runner.error",
-        payload: { message: "Unknown session" }
+        payload: { sessionId: event.payload.sessionId, message: "Session no longer exists." }
       });
       return;
     }
@@ -225,7 +251,9 @@ export function cleanupAllSessions(): void {
     handle.abort();
   }
   runnerHandles.clear();
-  sessions.close();
+  if (sessions) {
+    sessions.close();
+  }
 }
 
 export { sessions };

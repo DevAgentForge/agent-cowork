@@ -1,10 +1,11 @@
 {
 	"name": "agent-cowork",
 	"private": true,
-	"version": "0.0.2",
+	"version": "0.1.0",
 	"type": "module",
 	"main": "dist-electron/main.js",
 	"scripts": {
+		"rebuild": "npx electron-rebuild -f -w better-sqlite3",
 		"dev": "pkill -f vite 2>/dev/null; pkill -f electron 2>/dev/null; sleep 1; bun run dev:react & bun run dev:electron",
 		"dev:react": "vite",
 		"dev:electron": "bun run transpile:electron && cross-env NODE_ENV=development electron .",
@@ -12,7 +13,8 @@
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"transpile:electron": "tsc --project src/electron/tsconfig.json",
-		"dist:mac": "bun run transpile:electron && bun run build && electron-builder --mac --arm64",
+		"dist:mac-arm64": "bun run transpile:electron && bun run build && electron-builder --mac --arm64",
+		"dist:mac-x64": "bun run transpile:electron && bun run build && electron-builder --mac --x64",
 		"dist:win": "bun run transpile:electron && bun run build && electron-builder --win --x64",
 		"dist:linux": "bun run transpile:electron && bun run build && electron-builder --linux --x64"
 	},
@@ -52,5 +54,8 @@
 		"typescript": "~5.9.3",
 		"typescript-eslint": "^8.52.0",
 		"vite": "^7.3.1"
+	},
+	"patchedDependencies": {
+		"@anthropic-ai/claude-agent-sdk@0.2.6": "patches/@anthropic-ai%2Fclaude-agent-sdk@0.2.6.patch"
 	}
 }

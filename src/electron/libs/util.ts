@@ -1,65 +1,63 @@
-import { claudeCodeEnv } from "./claude-settings.js";
 import { unstable_v2_prompt } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
+import { getCurrentApiConfig, buildEnvForConfig, getClaudeCodePath} from "./claude-settings.js";
 import { app } from "electron";
-import { join } from "path";
-import { homedir } from "os";
-
-// Get Claude Code CLI path for packaged app
-export function getClaudeCodePath(): string | undefined {
-  if (app.isPackaged) {
-    return join(
-      process.resourcesPath,
-      'app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js'
-    );
-  }
-  return undefined;
-}
 
 // Build enhanced PATH for packaged environment
 export function getEnhancedEnv(): Record<string, string | undefined> {
-  const home = homedir();
-  const additionalPaths = [
-    '/usr/local/bin',
-    '/opt/homebrew/bin',
-    `${home}/.bun/bin`,
-    `${home}/.nvm/versions/node/v20.0.0/bin`,
-    `${home}/.nvm/versions/node/v22.0.0/bin`,
-    `${home}/.nvm/versions/node/v18.0.0/bin`,
-    `${home}/.volta/bin`,
-    `${home}/.fnm/aliases/default/bin`,
-    '/usr/bin',
-    '/bin',
-  ];
 
-  const currentPath = process.env.PATH || '';
-  const newPath = [...additionalPaths, currentPath].join(':');
-
+  const config = getCurrentApiConfig();
+  if (!config) {
+    return {
+      ...process.env,
+    };
+  }
+  
+  const env = buildEnvForConfig(config);
   return {
     ...process.env,
-    PATH: newPath,
+    ...env,
   };
 }
-
-export const claudeCodePath = getClaudeCodePath();
-export const enhancedEnv = getEnhancedEnv();
 
 export const generateSessionTitle = async (userIntent: string | null) => {
   if (!userIntent) return "New Session";
 
-  const result: SDKResultMessage = await unstable_v2_prompt(
-    `please analynis the following user input to generate a short but clearly title to identify this conversation theme:
-    ${userIntent}
-    directly output the title, do not include any other content`, {
-    model: claudeCodeEnv.ANTHROPIC_MODEL,
-    env: enhancedEnv,
-    pathToClaudeCodeExecutable: claudeCodePath,
-  });
+  // Get the Claude Code path when needed, not at module load time
+  const claudeCodePath = getClaudeCodePath();
+  // Get fresh env each time to ensure latest API config is used
+  const currentEnv = getEnhancedEnv();
 
-  if (result.subtype === "success") {
-    return result.result;
+  try {
+    const result: SDKResultMessage = await unstable_v2_prompt(
+      `please analynis the following user input to generate a short but clearly title to identify this conversation theme:
+      ${userIntent}
+      directly output the title, do not include any other content`, {
+      model: getCurrentApiConfig()?.model || "claude-sonnet",
+      env: currentEnv,
+      pathToClaudeCodeExecutable: claudeCodePath,
+    });
+
+    if (result.subtype === "success") {
+      return result.result;
+    }
+
+    // Log any non-success result for debugging
+    console.error("Claude SDK returned non-success result:", result);
+    return "New Session";
+  } catch (error) {
+    // Enhanced error logging for packaged app debugging
+    console.error("Failed to generate session title:", error);
+    console.error("Claude Code path:", claudeCodePath);
+    console.error("Is packaged:", app.isPackaged);
+    console.error("Resources path:", process.resourcesPath);
+
+    // Return a simple title based on user input as fallback
+    if (userIntent) {
+      const words = userIntent.trim().split(/\s+/).slice(0, 5);
+      return words.join(" ").toUpperCase() + (userIntent.trim().split(/\s+/).length > 5 ? "..." : "");
+    }
+
+    return "New Session";
   }
-
-
-  return "New Session";
 };

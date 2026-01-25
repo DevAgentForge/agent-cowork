@@ -6,6 +6,7 @@ import { useAppStore } from "./store/useAppStore";
 import type { ServerEvent } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { StartSessionModal } from "./components/StartSessionModal";
+import { SettingsModal } from "./components/SettingsModal";
 import { PromptInput, usePromptActions } from "./components/PromptInput";
 import { MessageCard } from "./components/EventCard";
 import MDContent from "./render/markdown";
@@ -29,6 +30,8 @@ function App() {
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const showStartModal = useAppStore((s) => s.showStartModal);
   const setShowStartModal = useAppStore((s) => s.setShowStartModal);
+  const showSettingsModal = useAppStore((s) => s.showSettingsModal);
+  const setShowSettingsModal = useAppStore((s) => s.setShowSettingsModal);
   const globalError = useAppStore((s) => s.globalError);
   const setGlobalError = useAppStore((s) => s.setGlobalError);
   const historyRequested = useAppStore((s) => s.historyRequested);
@@ -40,6 +43,8 @@ function App() {
   const cwd = useAppStore((s) => s.cwd);
   const setCwd = useAppStore((s) => s.setCwd);
   const pendingStart = useAppStore((s) => s.pendingStart);
+  const apiConfigChecked = useAppStore((s) => s.apiConfigChecked);
+  const setApiConfigChecked = useAppStore((s) => s.setApiConfigChecked);
 
   // Helper function to extract partial message content
   const getPartialMessageContent = (eventMessage: any) => {
@@ -104,6 +109,21 @@ function App() {
     resetToLatest,
     totalMessages,
   } = useMessageWindow(messages, permissionRequests, activeSessionId);
+
+  // 启动时检查 API 配置
+  useEffect(() => {
+    if (!apiConfigChecked) {
+      window.electron.checkApiConfig().then((result) => {
+        setApiConfigChecked(true);
+        if (!result.hasConfig) {
+          setShowSettingsModal(true);
+        }
+      }).catch((err) => {
+        console.error("Failed to check API config:", err);
+        setApiConfigChecked(true);
+      });
+    }
+  }, [apiConfigChecked, setApiConfigChecked, setShowSettingsModal]);
 
   useEffect(() => {
     if (connected) sendEvent({ type: "session.list" });
@@ -271,7 +291,7 @@ function App() {
             {visibleMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="text-lg font-medium text-ink-700">No messages yet</div>
-                <p className="mt-2 text-sm text-muted">Start a conversation with Claude Code</p>
+                <p className="mt-2 text-sm text-muted">Start a conversation with agent cowork</p>
               </div>
             ) : (
               visibleMessages.map((item, idx) => (
@@ -314,7 +334,7 @@ function App() {
           </div>
         </div>
 
-        <PromptInput sendEvent={sendEvent} onSendMessage={handleSendMessage} />
+        <PromptInput sendEvent={sendEvent} onSendMessage={handleSendMessage} disabled={visibleMessages.length === 0} />
 
         {hasNewMessages && !shouldAutoScroll && (
           <button
@@ -339,6 +359,10 @@ function App() {
           onStart={handleStartFromModal}
           onClose={() => setShowStartModal(false)}
         />
+      )}
+
+      {showSettingsModal && (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
       )}
 
       {globalError && (

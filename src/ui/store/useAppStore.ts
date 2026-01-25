@@ -29,14 +29,18 @@ interface AppState {
   globalError: string | null;
   sessionsLoaded: boolean;
   showStartModal: boolean;
+  showSettingsModal: boolean;
   historyRequested: Set<string>;
+  apiConfigChecked: boolean;
 
   setPrompt: (prompt: string) => void;
   setCwd: (cwd: string) => void;
   setPendingStart: (pending: boolean) => void;
   setGlobalError: (error: string | null) => void;
   setShowStartModal: (show: boolean) => void;
+  setShowSettingsModal: (show: boolean) => void;
   setActiveSessionId: (id: string | null) => void;
+  setApiConfigChecked: (checked: boolean) => void;
   markHistoryRequested: (sessionId: string) => void;
   resolvePermissionRequest: (sessionId: string, toolUseId: string) => void;
   handleServerEvent: (event: ServerEvent) => void;
@@ -55,14 +59,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   globalError: null,
   sessionsLoaded: false,
   showStartModal: false,
+  showSettingsModal: false,
   historyRequested: new Set(),
+  apiConfigChecked: false,
 
   setPrompt: (prompt) => set({ prompt }),
   setCwd: (cwd) => set({ cwd }),
   setPendingStart: (pendingStart) => set({ pendingStart }),
   setGlobalError: (globalError) => set({ globalError }),
   setShowStartModal: (showStartModal) => set({ showStartModal }),
+  setShowSettingsModal: (showSettingsModal) => set({ showSettingsModal }),
   setActiveSessionId: (id) => set({ activeSessionId: id }),
+  setApiConfigChecked: (apiConfigChecked) => set({ apiConfigChecked }),
 
   markHistoryRequested: (sessionId) => {
     set((state) => {
@@ -178,13 +186,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       case "session.deleted": {
         const { sessionId } = event.payload;
         const state = get();
-        if (!state.sessions[sessionId]) break;
+
         const nextSessions = { ...state.sessions };
         delete nextSessions[sessionId];
+
+        const nextHistoryRequested = new Set(state.historyRequested);
+        nextHistoryRequested.delete(sessionId);
+
+        const hasRemaining = Object.keys(nextSessions).length > 0;
+
         set({
           sessions: nextSessions,
-          showStartModal: Object.keys(nextSessions).length === 0
+          historyRequested: nextHistoryRequested,
+          showStartModal: !hasRemaining
         });
+
         if (state.activeSessionId === sessionId) {
           const remaining = Object.values(nextSessions).sort(
             (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)
