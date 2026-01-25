@@ -2,8 +2,9 @@ import { query, type SDKMessage, type PermissionResult } from "@anthropic-ai/cla
 import type { ServerEvent } from "../types.js";
 import type { Session } from "./session-store.js";
 
-import { getCurrentApiConfig, buildEnvForConfig, getClaudeCodePath} from "./claude-settings.js";
+import { getCurrentApiConfig, buildEnvForConfig, getClaudeCodePath } from "./claude-settings.js";
 import { getEnhancedEnv } from "./util.js";
+import { getMCPManager } from "./mcp/mcp-manager.js";
 
 
 export type RunnerOptions = {
@@ -44,7 +45,7 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
     try {
       // 获取当前配置
       const config = getCurrentApiConfig();
-      
+
       if (!config) {
         onEvent({
           type: "session.status",
@@ -52,14 +53,25 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
         });
         return;
       }
-      
+
       // 使用 Anthropic SDK
       const env = buildEnvForConfig(config);
       const mergedEnv = {
         ...getEnhancedEnv(),
         ...env
       };
-      
+
+      // 构建 MCP Servers 配置（使用 MCP Manager）
+      const manager = getMCPManager();
+      const mcpServers = manager.buildSDKConfig();
+      const mcpServerCount = Object.keys(mcpServers).length;
+
+      if (mcpServerCount > 0) {
+        console.log(`[MCP] Configured ${mcpServerCount} MCP server(s) for Claude SDK:`, Object.keys(mcpServers));
+      } else {
+        console.log('[MCP] No MCP servers configured');
+      }
+
       const q = query({
         prompt,
         options: {
@@ -71,6 +83,8 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
           permissionMode: "bypassPermissions",
           includePartialMessages: true,
           allowDangerouslySkipPermissions: true,
+          // 注入 MCP Servers 配置
+          mcpServers: mcpServerCount > 0 ? mcpServers : undefined,
           canUseTool: async (toolName, input, { signal }) => {
             // For AskUserQuestion, we need to wait for user response
             if (toolName === "AskUserQuestion") {
@@ -99,7 +113,7 @@ export async function runClaude(options: RunnerOptions): Promise<RunnerHandle> {
               });
             }
 
-            // Auto-approve other tools
+            // Auto-approve all other tools (including MCP tools)
             return { behavior: "allow", updatedInput: input };
           }
         }
