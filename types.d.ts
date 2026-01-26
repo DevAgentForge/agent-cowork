@@ -12,6 +12,20 @@ type StaticData = {
 
 type UnsubscribeFunction = () => void;
 
+type MCPServerStatus = "running" | "stopped" | "error" | "starting";
+
+type MCPServerInfo = {
+    id: string;
+    name: string;
+    description?: string;
+    enabled: boolean;
+    isBuiltin?: boolean;
+    builtinType?: string;
+    browserMode?: "visible" | "headless";
+    status: MCPServerStatus;
+    errorMessage?: string;
+}
+
 type EventPayloadMapping = {
     statistics: Statistics;
     getStaticData: StaticData;
@@ -21,6 +35,23 @@ type EventPayloadMapping = {
     "get-api-config": { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null;
     "save-api-config": { success: boolean; error?: string };
     "check-api-config": { hasConfig: boolean; config: { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null };
+    // MCP APIs
+    "mcp-get-servers": MCPServerInfo[];
+    "mcp-enable-server": { success: boolean };
+    "mcp-disable-server": { success: boolean };
+    "mcp-enable-browser-automation": { success: boolean };
+    "mcp-add-server": { success: boolean; serverId: string };
+    "mcp-update-server": { success: boolean };
+    "mcp-delete-server": { success: boolean };
+}
+
+type MCPServerFormData = {
+    name: string;
+    description?: string;
+    command: string;
+    args?: string[];
+    env?: Record<string, string>;
+    transportType: "stdio" | "sse";
 }
 
 interface Window {
@@ -36,5 +67,14 @@ interface Window {
         getApiConfig: () => Promise<{ apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null>;
         saveApiConfig: (config: { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" }) => Promise<{ success: boolean; error?: string }>;
         checkApiConfig: () => Promise<{ hasConfig: boolean; config: { apiKey: string; baseURL: string; model: string; apiType?: "anthropic" } | null }>;
+        // MCP APIs
+        getMCPServers: () => Promise<MCPServerInfo[]>;
+        enableMCPServer: (serverId: string) => Promise<{ success: boolean }>;
+        disableMCPServer: (serverId: string) => Promise<{ success: boolean }>;
+        enableBrowserAutomation: () => Promise<{ success: boolean }>;
+        addMCPServer: (config: MCPServerFormData) => Promise<{ success: boolean; serverId: string }>;
+        updateMCPServer: (serverId: string, config: Partial<MCPServerFormData>) => Promise<{ success: boolean }>;
+        deleteMCPServer: (serverId: string) => Promise<{ success: boolean }>;
+        onMCPStatusChange: (callback: (serverId: string, status: MCPServerStatus, error?: string) => void) => UnsubscribeFunction;
     }
 }
